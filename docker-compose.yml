@@ -14,6 +14,7 @@ volumes:
   lightwalletd-data:
   zaino-data:
   faucet-data:
+  zingo-data:
 
     # ========================================
     # SERVICES
@@ -42,8 +43,8 @@ services:
       test: [ "CMD", "curl", "-s", "-X", "POST", "-H", "Content-Type: application/json", "--data", '{"jsonrpc": "2.0", "method": "getblockcount", "params": [], "id": "health"}', "http://127.0.0.1:8232" ]
       interval: 20s
       timeout: 10s
-      retries: 30
-      start_period: 180s
+      retries: 60
+      start_period: 300s
 
   # ========================================
   # ZEBRA SYNC NODE
@@ -71,8 +72,8 @@ services:
       test: [ "CMD", "curl", "-s", "-X", "POST", "-H", "Content-Type: application/json", "--data", '{"jsonrpc": "2.0", "method": "getblockcount", "params": [], "id": "health"}', "http://127.0.0.1:8232" ]
       interval: 20s
       timeout: 10s
-      retries: 30
-      start_period: 180s
+      retries: 60
+      start_period: 300s
 
   # ========================================
   # LIGHTWALLETD (Profile: lwd)
@@ -104,7 +105,7 @@ services:
       test: [ "CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/9067' || exit 1" ]
       interval: 10s
       timeout: 5s
-      retries: 60
+      retries: 120
       start_period: 120s
 
   # ========================================
@@ -144,8 +145,50 @@ services:
       test: [ "CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/9067' || exit 1" ]
       interval: 10s
       timeout: 5s
-      retries: 120
-      start_period: 180s
+      retries: 180
+      start_period: 300s
+
+  # ========================================
+  # ZINGO WALLET (Profile: lwd)
+  # ========================================
+  zingo-wallet-lwd:
+    build:
+      context: ./docker/zingo
+      dockerfile: Dockerfile
+    container_name: zeckit-zingo-wallet
+    environment:
+      - LIGHTWALLETD_URI=http://lightwalletd:9067
+    volumes:
+      - zingo-data:/var/zingo
+    depends_on:
+      lightwalletd:
+        condition: service_healthy
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    profiles:
+      - lwd
+
+  # ========================================
+  # ZINGO WALLET (Profile: zaino)
+  # ========================================
+  zingo-wallet-zaino:
+    build:
+      context: ./docker/zingo
+      dockerfile: Dockerfile
+    container_name: zeckit-zingo-wallet
+    environment:
+      - LIGHTWALLETD_URI=http://zaino:9067
+    volumes:
+      - zingo-data:/var/zingo
+    depends_on:
+      zaino:
+        condition: service_healthy
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    profiles:
+      - zaino
 
   # ========================================
   #  FAUCET SERVICE - LWD Profile
@@ -206,7 +249,7 @@ services:
       zebra-sync:
         condition: service_healthy
       zaino:
-        condition: service_started
+        condition: service_healthy
     networks:
       - zeckit-network
     restart: unless-stopped
