@@ -39,11 +39,11 @@ services:
       - zeckit-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8232' || exit 1" ]
-      interval: 30s
+      test: [ "CMD", "curl", "-s", "-X", "POST", "-H", "Content-Type: application/json", "--data", '{"jsonrpc": "2.0", "method": "getblockcount", "params": [], "id": "health"}', "http://127.0.0.1:8232" ]
+      interval: 20s
       timeout: 10s
-      retries: 10
-      start_period: 120s
+      retries: 30
+      start_period: 180s
 
   # ========================================
   # ZEBRA SYNC NODE
@@ -68,11 +68,11 @@ services:
       zebra-miner:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8232' || exit 1" ]
-      interval: 30s
+      test: [ "CMD", "curl", "-s", "-X", "POST", "-H", "Content-Type: application/json", "--data", '{"jsonrpc": "2.0", "method": "getblockcount", "params": [], "id": "health"}', "http://127.0.0.1:8232" ]
+      interval: 20s
       timeout: 10s
-      retries: 10
-      start_period: 120s
+      retries: 30
+      start_period: 180s
 
   # ========================================
   # LIGHTWALLETD (Profile: lwd)
@@ -104,7 +104,7 @@ services:
       test: [ "CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/9067' || exit 1" ]
       interval: 10s
       timeout: 5s
-      retries: 30
+      retries: 60
       start_period: 120s
 
   # ========================================
@@ -144,7 +144,7 @@ services:
       test: [ "CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/9067' || exit 1" ]
       interval: 10s
       timeout: 5s
-      retries: 60
+      retries: 120
       start_period: 180s
 
   # ========================================

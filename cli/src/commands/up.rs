@@ -92,8 +92,9 @@ pub async fn execute(backend: String, fresh: bool) -> Result<()> {
             println!("[1.1/3] Zebra Miner ready");
             break;
         }
-        if start.elapsed().as_secs() > 120 {
-            return Err(ZecKitError::ServiceNotReady("Zebra Miner not ready".into()));
+        // Defer to checker internal timeout
+        if start.elapsed().as_secs() > 1200 {
+            return Err(ZecKitError::ServiceNotReady("Zebra Miner not ready after 20 mins".into()));
         }
         sleep(Duration::from_secs(1)).await;
     }
@@ -106,8 +107,9 @@ pub async fn execute(backend: String, fresh: bool) -> Result<()> {
             println!("[1.2/3] Zebra Sync Node ready");
             break;
         }
-        if start_sync.elapsed().as_secs() > 120 {
-            return Err(ZecKitError::ServiceNotReady("Zebra Sync Node not ready".into()));
+        // Defer to checker internal timeout
+        if start_sync.elapsed().as_secs() > 1200 {
+            return Err(ZecKitError::ServiceNotReady("Zebra Sync Node not ready after 20 mins".into()));
         }
         sleep(Duration::from_secs(1)).await;
     }
