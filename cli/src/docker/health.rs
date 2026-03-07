@@ -17,9 +17,9 @@ impl HealthChecker {
     pub fn new() -> Self {
         Self {
             client: Client::new(),
-            max_retries: 1800,
+            max_retries: 1800, // 1 hour (1800 * 2s)
             retry_delay: Duration::from_secs(2),
-            backend_max_retries: 1800,
+            backend_max_retries: 1800, 
         }
     }
 
