@@ -1,0 +1,5 @@
+{
+  "note": "Transparent test address for faucet e2e tests (faucet supports transparent only)",
+  "test_address": "tmRn9qwKzgWYLwxpeydTET4gpZYyR3WXA5C",
+  "type": "transparent"
+}

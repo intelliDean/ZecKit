@@ -1,0 +1,228 @@
+name: E2E Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  e2e-tests:
+    name: ZecKit E2E Test Suite
+    runs-on: ubuntu-latest
+    
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Check environment
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Environment Check"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          docker --version
+          docker compose version
+          rustc --version
+          cargo --version
+          echo ""
+      
+      - name: Clean up previous runs
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Cleaning Up Previous Runs"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          # Stop containers
+          echo "Stopping containers..."
+          docker compose down 2>/dev/null || true
+          
+          # Remove volumes to clear stale data
+          echo "Removing stale volumes..."
+          docker volume rm zeckit_zebra-data 2>/dev/null || true
+          docker volume rm zeckit_zebra-sync-data 2>/dev/null || true
+          docker volume rm zeckit_zaino-data 2>/dev/null || true
+          docker volume rm zeckit_lightwalletd-data 2>/dev/null || true
+          docker volume rm zeckit_faucet-data 2>/dev/null || true
+          
+          # Remove orphaned containers
+          docker compose down --remove-orphans 2>/dev/null || true
+          
+          echo "✓ Cleanup complete"
+          echo ""
+      
+      - name: Build CLI binary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Building zeckit CLI"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          cd cli
+          cargo build --release
+          cd ..
+          echo "✓ CLI binary built"
+          ls -lh cli/target/release/zeckit
+          echo ""
+      
+      - name: Start devnet with zaino backend
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Starting ZecKit Devnet"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          # No --fresh flag, but volumes are already cleared above
+          ./cli/target/release/zeckit up --backend zaino &
+          PID=$!
+          
+          SECONDS=0
+          MAX_SECONDS=3600
+          
+          while kill -0 $PID 2>/dev/null && [ $SECONDS -lt $MAX_SECONDS ]; do
+            sleep 30
+            ELAPSED_MIN=$((SECONDS / 60))
+            echo "⏱️  Starting devnet... ($ELAPSED_MIN minutes elapsed)"
+          done
+          
+          if kill -0 $PID 2>/dev/null; then
+            echo "✗ Devnet startup timed out after 1 hour"
+            kill $PID 2>/dev/null || true
+            echo ""
+            echo "Container logs:"
+            docker compose logs || true
+            exit 1
+          fi
+          
+          wait $PID
+          EXIT_CODE=$?
+          
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "✗ Devnet startup failed!"
+            echo ""
+            echo "Container logs:"
+            docker compose logs || true
+            exit 1
+          fi
+          
+          echo ""
+          echo "✓ Devnet started successfully"
+          echo ""
+      
+      - name: Run smoke tests
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Running Smoke Tests"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          ./cli/target/release/zeckit test
+          
+          TEST_EXIT_CODE=$?
+          
+          echo ""
+          if [ $TEST_EXIT_CODE -eq 0 ]; then
+            echo "✓ All smoke tests PASSED!"
+          else
+            echo "✗ Smoke tests FAILED!"
+            exit 1
+          fi
+          echo ""
+      
+      - name: Check wallet balance
+        if: always()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Wallet Status"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          docker exec zeckit-zingo-wallet bash -c "echo -e 'balance\nquit' | zingo-cli --data-dir /var/zingo --server http://zaino:9067 --chain regtest --nosync" 2>/dev/null || echo "Could not retrieve balance"
+          echo ""
+      
+      - name: Check faucet status
+        if: always()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Faucet Status"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          curl -s http://127.0.0.1:8080/stats | jq . || echo "Could not get faucet stats"
+          echo ""
+      
+      - name: Collect logs
+        if: always()
+        run: |
+          echo "Collecting logs for artifact..."
+          mkdir -p logs
+          
+          docker compose logs zebra-miner > logs/zebra-miner.log 2>&1 || true
+          docker compose logs zebra-sync > logs/zebra-sync.log 2>&1 || true
+          docker compose logs zaino > logs/zaino.log 2>&1 || true
+          docker compose logs faucet-zaino > logs/faucet.log 2>&1 || true
+          docker ps -a > logs/containers.log 2>&1 || true
+          docker network ls > logs/networks.log 2>&1 || true
+          
+          echo "✓ Logs collected"
+      
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 7
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Cleanup"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          echo "Stopping containers (keeping images for next run)..."
+          docker compose down --remove-orphans 2>/dev/null || true
+          
+          echo "✓ Cleanup complete"
+          echo ""
+      
+      - name: Test summary
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  E2E Test Execution Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✓ Status: ALL TESTS PASSED ✓"
+            echo ""
+            echo "Completed checks:"
+            echo "  ✓ Environment checked"
+            echo "  ✓ CLI binary built"
+            echo "  ✓ Devnet started (clean state, cached images)"
+            echo "  ✓ Smoke tests passed"
+            echo "  ✓ Wallet synced"
+            echo "  ✓ Faucet operational"
+            echo ""
+            echo "The ZecKit devnet is working correctly!"
+          else
+            echo "✗ Status: TESTS FAILED ✗"
+            echo ""
+            echo "Check the logs above for details"
+            echo "Artifact logs: e2e-test-logs-${{ github.run_number }}"
+          fi
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""

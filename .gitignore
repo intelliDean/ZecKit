@@ -1,0 +1,103 @@
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker volumes and data
+docker/data/
+**/data/
+*.db
+
+# Environment files (secrets)
+.env
+*.env
+!*.env.example
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Build artifacts
+target/
+dist/
+build/
+*.tar.gz
+*.zip
+
+# Rust (for future CLI in M2)
+Cargo.lock
+target/
+
+# Python (for faucet in M2)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+
+# Node modules (if needed)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Secrets and keys
+secrets/
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+wallets/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Coverage reports
+coverage/
+*.coverage
+.nyc_output/
+
+# CI artifacts
+.github/actions-runner/
+
+# Docker Compose overrides (local customization)
+docker-compose.override.yml
+
+# MacOS
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs_vista.db
+actions-runner/
+*.bak

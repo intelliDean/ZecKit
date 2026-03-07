@@ -1,0 +1,57 @@
+[package]
+name = "zeckit-faucet"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP client for Zebra RPC
+reqwest = { version = "0.12", features = ["json"] }
+
+# Zingolib - using YOUR fork with macOS fix
+zingolib = { git = "https://github.com/Timi16/zingolib", branch = "zcash-params-mac-error", features = ["regtest"] }
+
+# Zcash address handling
+zcash_address = "0.4"
+zcash_primitives = "0.26.4"  # Added back - matches zingolib's version
+zcash_client_backend = "0.21.0"
+zcash_keys = "0.12.0"
+zcash_protocol = "0.7.2"
+zingo-memo = "0.1.0"
+zebra-chain = "3.1.0"
+tonic = "0.14.3"
+bip0039 = "0.12"
+zip32 = "0.2.1"
+http = "1.0"
+
+[dev-dependencies]
+tempfile = "3.0"
+mockito = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

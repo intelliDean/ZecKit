@@ -1,0 +1,7 @@
+{
+  "faucet_address": "uregtest1rtw9s525f2rkzudhd6tsqzlhp8zcds9sk3r0rf03d9qxk4sdndh5ffjg3c2949c45mgunk4cj9zvwfqdkuhrpmtv75t3u7w88qjh2ftc",
+  "receivers": [
+    "orchard"
+  ],
+  "type": "unified"
+}
