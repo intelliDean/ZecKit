@@ -118,7 +118,7 @@ services:
         - NO_TLS=true
         - RUST_VERSION=1.91.1
     ports:
-      - "19067:9067"
+      - "9067:9067"
     depends_on:
       zebra-miner:
         condition: service_started
