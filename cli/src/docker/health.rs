@@ -14,47 +14,12 @@ pub struct HealthChecker {
 }
 
 impl HealthChecker {
-    pub fn new() -> Self {
-        Self {
-            client: Client::new(),
-            max_retries: 1800, // 1 hour (1800 * 2s)
-            retry_delay: Duration::from_secs(2),
-            backend_max_retries: 1800, 
-        }
+    pub async fn check_zebra_miner_ready(&self) -> Result<()> {
+        self.check_zebra(8232).await
     }
 
-    pub async fn wait_for_zebra_miner(&self, pb: &ProgressBar) -> Result<()> {
-        for i in 0..self.max_retries {
-            pb.tick();
-            
-            match self.check_zebra(8232).await {
-                Ok(_) => return Ok(()),
-                Err(e) if i < self.max_retries - 1 => {
-                    pb.set_message(format!("Waiting for Zebra Miner... (Error: {})", e));
-                    sleep(self.retry_delay).await;
-                }
-                Err(e) => return Err(e),
-            }
-        }
-
-        Err(ZecKitError::ServiceNotReady("Zebra Miner".into()))
-    }
-
-    pub async fn wait_for_zebra_sync(&self, pb: &ProgressBar) -> Result<()> {
-        for i in 0..self.max_retries {
-            pb.tick();
-            
-            match self.check_zebra(18232).await {
-                Ok(_) => return Ok(()),
-                Err(e) if i < self.max_retries - 1 => {
-                    pb.set_message(format!("Waiting for Zebra Sync... (Error: {})", e));
-                    sleep(self.retry_delay).await;
-                }
-                Err(e) => return Err(e),
-            }
-        }
-
-        Err(ZecKitError::ServiceNotReady("Zebra Sync".into()))
+    pub async fn check_zebra_sync_ready(&self) -> Result<()> {
+        self.check_zebra(18232).await
     }
 
     pub async fn wait_for_faucet(&self, pb: &ProgressBar) -> Result<()> {

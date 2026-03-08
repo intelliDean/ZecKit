@@ -28,8 +28,8 @@ services:
       context: ./docker/zebra
       dockerfile: Dockerfile
     ports:
-      - "127.0.0.1:8232:8232"
-      - "127.0.0.1:8233:8233"
+      - "8232:8232"
+      - "8233:8233"
     volumes:
       - ./docker/configs/zebra.toml:/etc/zebrad/zebrad.toml:ro
       - zebra-data:/var/zebra
@@ -54,8 +54,8 @@ services:
       context: ./docker/zebra
       dockerfile: Dockerfile
     ports:
-      - "127.0.0.1:18232:8232"
-      - "127.0.0.1:18233:8233"
+      - "18232:8232"
+      - "18233:8233"
     volumes:
       - ./docker/configs/zebra-sync.toml:/etc/zebrad/zebrad.toml:ro
       - zebra-sync-data:/var/zebra
@@ -83,7 +83,7 @@ services:
       context: ./docker/lightwalletd
       dockerfile: Dockerfile
     ports:
-      - "127.0.0.1:9067:9067"
+      - "9067:9067"
     depends_on:
       zebra-miner:
         condition: service_started
@@ -118,7 +118,7 @@ services:
         - NO_TLS=true
         - RUST_VERSION=1.91.1
     ports:
-      - "127.0.0.1:9067:9067"
+      - "19067:9067"
     depends_on:
       zebra-miner:
         condition: service_started
@@ -194,7 +194,7 @@ services:
       context: ./zeckit-faucet
       dockerfile: Dockerfile
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     volumes:
       - faucet-data:/var/zingo
     environment:
@@ -232,7 +232,7 @@ services:
       context: ./zeckit-faucet
       dockerfile: Dockerfile
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     volumes:
       - faucet-data:/var/zingo
     environment:
