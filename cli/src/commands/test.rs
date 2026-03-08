@@ -117,6 +117,7 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool) -> Result<()>
     }
 
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
+    println!("  Summary: {} passed, {} failed", passed, failed);
     println!();
 
     if action_mode {

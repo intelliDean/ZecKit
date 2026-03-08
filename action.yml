@@ -65,20 +65,20 @@ runs:
       run: |
         cd ${{ github.action_path }}/cli
         cargo build --release
-        cp target/release/zeckit ${{ github.workspace }}/zeckit
       
     - name: Run E2E Suite
       id: e2e
       shell: bash
+      working-directory: ${{ github.action_path }}
       run: |
         # Run the devnet
-        ./zeckit up \
+        ./cli/target/release/zeckit up \
           --backend "${{ inputs.backend }}" \
           --timeout "${{ inputs.startup_timeout_minutes }}" \
           --action-mode
         
         # Run the tests
-        ./zeckit test \
+        ./cli/target/release/zeckit test \
           --amount "${{ inputs.send_amount }}" \
           --memo "${{ inputs.send_memo }}" \
           --action-mode
@@ -96,10 +96,10 @@ runs:
 
     - name: Upload Artifacts
       if: |
-        (inputs.upload_artifacts == 'always') ||
-        (inputs.upload_artifacts == 'on-failure' && steps.e2e.outputs.test_result != 'pass')
+        always() &&
+        (inputs.upload_artifacts == 'always' || (inputs.upload_artifacts == 'on-failure' && steps.e2e.outputs.test_result != 'pass'))
       uses: actions/upload-artifact@v4
       with:
         name: zeckit-e2e-logs-${{ github.run_number }}
-        path: logs/
+        path: ${{ github.action_path }}/logs/
         retention-days: 14
