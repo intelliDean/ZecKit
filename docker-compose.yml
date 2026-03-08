@@ -27,7 +27,6 @@ services:
     build:
       context: ./docker/zebra
       dockerfile: Dockerfile
-    # container_name removed to avoid conflicts between profiles
     ports:
       - "127.0.0.1:8232:8232"
       - "127.0.0.1:8233:8233"
@@ -36,14 +35,15 @@ services:
       - zebra-data:/var/zebra
     environment:
       - NETWORK=Regtest
+      - RUST_LOG=info
     networks:
       - zeckit-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-s", "-X", "POST", "-H", "Content-Type: application/json", "--data", '{"jsonrpc": "2.0", "method": "getblockcount", "params": [], "id": "health"}', "http://127.0.0.1:8232" ]
-      interval: 20s
+      test: [ "CMD-SHELL", "curl -s -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"getblockcount\",\"params\":[],\"id\":\"health\"}' http://127.0.0.1:8232 || exit 1" ]
+      interval: 30s
       timeout: 10s
-      retries: 40
+      retries: 50
       start_period: 60s
 
   # ========================================
@@ -61,6 +61,7 @@ services:
       - zebra-sync-data:/var/zebra
     environment:
       - NETWORK=Regtest
+      - RUST_LOG=info
     networks:
       - zeckit-network
     restart: unless-stopped
@@ -68,10 +69,10 @@ services:
       zebra-miner:
         condition: service_started
     healthcheck:
-      test: [ "CMD", "curl", "-s", "-X", "POST", "-H", "Content-Type: application/json", "--data", '{"jsonrpc": "2.0", "method": "getblockcount", "params": [], "id": "health"}', "http://127.0.0.1:8232" ]
-      interval: 20s
+      test: [ "CMD-SHELL", "curl -s -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"getblockcount\",\"params\":[],\"id\":\"health\"}' http://127.0.0.1:8232 || exit 1" ]
+      interval: 30s
       timeout: 10s
-      retries: 40
+      retries: 50
       start_period: 60s
 
   # ========================================
@@ -100,17 +101,15 @@ services:
     profiles:
       - lwd
     healthcheck:
-      test: [ "CMD", "curl", "-s", "http://127.0.0.1:9067/health" ] # Assuming lwd has a health endpoint or we use standard curl check
+      test: [ "CMD-SHELL", "/usr/local/bin/grpc_health_probe -addr=127.0.0.1:9067 || exit 1" ]
       interval: 15s
       timeout: 5s
       retries: 60
-      start_period: 30s
-      # Fallback to simple port check if curl health fails
-      # test: ["CMD-SHELL", "curl -s http://127.0.0.1:9067/health || exit 1"]
+      start_period: 60s
 
-      # ========================================
-      # ZAINO INDEXER (Profile: zaino)
-      # ========================================
+  # ========================================
+  # ZAINO INDEXER (Profile: zaino)
+  # ========================================
   zaino:
     build:
       context: ./docker/zaino
@@ -141,11 +140,11 @@ services:
       - zaino
     user: "0:0"
     healthcheck:
-      test: [ "CMD", "curl", "-s", "http://127.0.0.1:9067/health" ] # Standardize to curl
+      test: [ "CMD-SHELL", "curl -s http://127.0.0.1:9067 || exit 1" ]
       interval: 15s
       timeout: 5s
       retries: 60
-      start_period: 30s
+      start_period: 60s
 
   # ========================================
   # ZINGO WALLET (Profile: lwd)
@@ -218,6 +217,12 @@ services:
     restart: unless-stopped
     profiles:
       - lwd
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s http://127.0.0.1:8080/health || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
 
   # ========================================
   #  FAUCET SERVICE - Zaino Profile
@@ -250,3 +255,9 @@ services:
     restart: unless-stopped
     profiles:
       - zaino
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s http://127.0.0.1:8080/health || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 60
+      start_period: 60s

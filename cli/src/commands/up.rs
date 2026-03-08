@@ -86,28 +86,38 @@ pub async fn execute(backend: String, fresh: bool) -> Result<()> {
     let start = std::time::Instant::now();
     
     // Wait for Miner
+    println!("Waiting for Zebra Miner node to initialize...");
     loop {
         pb.tick();
-        if checker.wait_for_zebra_miner(&pb).await.is_ok() {
-            println!("[1.1/3] Zebra Miner ready");
-            break;
-        }
-        if start.elapsed().as_secs() > 3600 {
-            return Err(ZecKitError::ServiceNotReady("Zebra Miner not ready after 1 hour".into()));
+        match checker.wait_for_zebra_miner(&pb).await {
+            Ok(_) => {
+                println!("[1.1/3] Zebra Miner ready");
+                break;
+            }
+            Err(e) => {
+                if start.elapsed().as_secs() > 3600 {
+                    return Err(ZecKitError::ServiceNotReady(format!("Zebra Miner not ready after 1 hour: {}", e)));
+                }
+            }
         }
         sleep(Duration::from_secs(1)).await;
     }
 
     // Wait for Sync Node
+    println!("Waiting for Zebra Sync node to initialize and peer...");
     let start_sync = std::time::Instant::now();
     loop {
         pb.tick();
-        if checker.wait_for_zebra_sync(&pb).await.is_ok() {
-            println!("[1.2/3] Zebra Sync Node ready");
-            break;
-        }
-        if start_sync.elapsed().as_secs() > 3600 {
-            return Err(ZecKitError::ServiceNotReady("Zebra Sync Node not ready after 1 hour".into()));
+        match checker.wait_for_zebra_sync(&pb).await {
+            Ok(_) => {
+                println!("[1.2/3] Zebra Sync Node ready");
+                break;
+            }
+            Err(e) => {
+                if start_sync.elapsed().as_secs() > 3600 {
+                    return Err(ZecKitError::ServiceNotReady(format!("Zebra Sync Node not ready after 1 hour: {}", e)));
+                }
+            }
         }
         sleep(Duration::from_secs(1)).await;
     }

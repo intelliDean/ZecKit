@@ -29,7 +29,8 @@ impl HealthChecker {
             
             match self.check_zebra(8232).await {
                 Ok(_) => return Ok(()),
-                Err(_) if i < self.max_retries - 1 => {
+                Err(e) if i < self.max_retries - 1 => {
+                    pb.set_message(format!("Waiting for Zebra Miner... (Error: {})", e));
                     sleep(self.retry_delay).await;
                 }
                 Err(e) => return Err(e),
@@ -45,7 +46,8 @@ impl HealthChecker {
             
             match self.check_zebra(18232).await {
                 Ok(_) => return Ok(()),
-                Err(_) if i < self.max_retries - 1 => {
+                Err(e) if i < self.max_retries - 1 => {
+                    pb.set_message(format!("Waiting for Zebra Sync... (Error: {})", e));
                     sleep(self.retry_delay).await;
                 }
                 Err(e) => return Err(e),
@@ -100,12 +102,14 @@ impl HealthChecker {
             }))
             .timeout(Duration::from_secs(5))
             .send()
-            .await?;
+            .await
+            .map_err(|e| ZecKitError::HealthCheck(format!("RPC call to {} failed: {}", url, e)))?;
 
         if resp.status().is_success() {
             Ok(())
         } else {
-            Err(ZecKitError::HealthCheck(format!("Zebra on port {} not ready", port)))
+            let status = resp.status();
+            Err(ZecKitError::HealthCheck(format!("Zebra on port {} returned status {}", port, status)))
         }
     }
 
