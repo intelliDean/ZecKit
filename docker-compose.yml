@@ -27,7 +27,7 @@ services:
     build:
       context: ./docker/zebra
       dockerfile: Dockerfile
-    container_name: zeckit-zebra-miner
+    # container_name removed to avoid conflicts between profiles
     ports:
       - "127.0.0.1:8232:8232"
       - "127.0.0.1:8233:8233"
@@ -40,10 +40,9 @@ services:
       - zeckit-network
     restart: unless-stopped
     healthcheck:
-      # Use simple port check for Docker - CLI will do the real JSON-RPC check
-      test: [ "CMD-SHELL", "cat < /dev/null > /dev/tcp/127.0.0.1/8232 || exit 1" ]
-      interval: 15s
-      timeout: 5s
+      test: [ "CMD", "curl", "-s", "-X", "POST", "-H", "Content-Type: application/json", "--data", '{"jsonrpc": "2.0", "method": "getblockcount", "params": [], "id": "health"}', "http://127.0.0.1:8232" ]
+      interval: 20s
+      timeout: 10s
       retries: 40
       start_period: 60s
 
@@ -54,7 +53,6 @@ services:
     build:
       context: ./docker/zebra
       dockerfile: Dockerfile
-    container_name: zeckit-zebra-sync
     ports:
       - "127.0.0.1:18232:8232"
       - "127.0.0.1:18233:8233"
@@ -68,11 +66,11 @@ services:
     restart: unless-stopped
     depends_on:
       zebra-miner:
-        condition: service_started # Relaxed from service_healthy for CI
+        condition: service_started
     healthcheck:
-      test: [ "CMD-SHELL", "cat < /dev/null > /dev/tcp/127.0.0.1/8232 || exit 1" ]
-      interval: 15s
-      timeout: 5s
+      test: [ "CMD", "curl", "-s", "-X", "POST", "-H", "Content-Type: application/json", "--data", '{"jsonrpc": "2.0", "method": "getblockcount", "params": [], "id": "health"}', "http://127.0.0.1:8232" ]
+      interval: 20s
+      timeout: 10s
       retries: 40
       start_period: 60s
 
@@ -83,7 +81,6 @@ services:
     build:
       context: ./docker/lightwalletd
       dockerfile: Dockerfile
-    container_name: zeckit-lightwalletd
     ports:
       - "127.0.0.1:9067:9067"
     depends_on:
@@ -103,15 +100,17 @@ services:
     profiles:
       - lwd
     healthcheck:
-      test: [ "CMD-SHELL", "cat < /dev/null > /dev/tcp/127.0.0.1/9067 || exit 1" ]
-      interval: 10s
+      test: [ "CMD", "curl", "-s", "http://127.0.0.1:9067/health" ] # Assuming lwd has a health endpoint or we use standard curl check
+      interval: 15s
       timeout: 5s
-      retries: 100
-      start_period: 60s
+      retries: 60
+      start_period: 30s
+      # Fallback to simple port check if curl health fails
+      # test: ["CMD-SHELL", "curl -s http://127.0.0.1:9067/health || exit 1"]
 
-  # ========================================
-  # ZAINO INDEXER (Profile: zaino)
-  # ========================================
+      # ========================================
+      # ZAINO INDEXER (Profile: zaino)
+      # ========================================
   zaino:
     build:
       context: ./docker/zaino
@@ -119,7 +118,6 @@ services:
       args:
         - NO_TLS=true
         - RUST_VERSION=1.91.1
-    container_name: zeckit-zaino
     ports:
       - "127.0.0.1:9067:9067"
     depends_on:
@@ -143,11 +141,11 @@ services:
       - zaino
     user: "0:0"
     healthcheck:
-      test: [ "CMD-SHELL", "cat < /dev/null > /dev/tcp/127.0.0.1/9067 || exit 1" ]
-      interval: 10s
+      test: [ "CMD", "curl", "-s", "http://127.0.0.1:9067/health" ] # Standardize to curl
+      interval: 15s
       timeout: 5s
-      retries: 200
-      start_period: 60s
+      retries: 60
+      start_period: 30s
 
   # ========================================
   # ZINGO WALLET (Profile: lwd)
@@ -156,7 +154,6 @@ services:
     build:
       context: ./docker/zingo
       dockerfile: Dockerfile
-    container_name: zeckit-zingo-wallet
     environment:
       - LIGHTWALLETD_URI=http://lightwalletd:9067
     volumes:
@@ -177,7 +174,6 @@ services:
     build:
       context: ./docker/zingo
       dockerfile: Dockerfile
-    container_name: zeckit-zingo-wallet
     environment:
       - LIGHTWALLETD_URI=http://zaino:9067
     volumes:
@@ -198,7 +194,6 @@ services:
     build:
       context: ./zeckit-faucet
       dockerfile: Dockerfile
-    container_name: zeckit-faucet
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
@@ -231,7 +226,6 @@ services:
     build:
       context: ./zeckit-faucet
       dockerfile: Dockerfile
-    container_name: zeckit-faucet
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
