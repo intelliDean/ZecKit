@@ -87,10 +87,8 @@ services:
     depends_on:
       zebra-miner:
         condition: service_started
-      zebra-sync:
-        condition: service_started
     environment:
-      - ZEBRA_RPC_HOST=zebra-sync
+      - ZEBRA_RPC_HOST=zebra-miner
       - ZEBRA_RPC_PORT=8232
       - LWD_GRPC_BIND=0.0.0.0:9067
     volumes:
@@ -122,10 +120,8 @@ services:
     depends_on:
       zebra-miner:
         condition: service_started
-      zebra-sync:
-        condition: service_started
     environment:
-      - ZEBRA_RPC_HOST=zebra-sync
+      - ZEBRA_RPC_HOST=zebra-miner
       - ZEBRA_RPC_PORT=8232
       - ZAINO_GRPC_BIND=0.0.0.0:9067
       - ZAINO_DATA_DIR=/var/zaino
@@ -199,7 +195,7 @@ services:
       - faucet-data:/var/zingo
     environment:
       - LIGHTWALLETD_URI=http://lightwalletd:9067
-      - ZEBRA_RPC_URL=http://zebra-sync:8232
+      - ZEBRA_RPC_URL=http://zebra-miner:8232
       - ZINGO_DATA_DIR=/var/zingo
       - FAUCET_AMOUNT_MIN=0.01
       - FAUCET_AMOUNT_MAX=100.0
@@ -207,8 +203,6 @@ services:
       - RUST_LOG=info
     depends_on:
       zebra-miner:
-        condition: service_started
-      zebra-sync:
         condition: service_started
       lightwalletd:
         condition: service_started
@@ -237,7 +231,7 @@ services:
       - faucet-data:/var/zingo
     environment:
       - LIGHTWALLETD_URI=http://zaino:9067
-      - ZEBRA_RPC_URL=http://zebra-sync:8232
+      - ZEBRA_RPC_URL=http://zebra-miner:8232
       - ZINGO_DATA_DIR=/var/zingo
       - FAUCET_AMOUNT_MIN=0.01
       - FAUCET_AMOUNT_MAX=100.0
@@ -245,8 +239,6 @@ services:
       - RUST_LOG=info
     depends_on:
       zebra-miner:
-        condition: service_started
-      zebra-sync:
         condition: service_started
       zaino:
         condition: service_started
