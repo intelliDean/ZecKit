@@ -1,8 +1,8 @@
 [network]
 network = "Regtest"
 listen_addr = "0.0.0.0:8233"
-initial_peers = ["zebra-miner:8233"]
-crawl_new_peers = false
+initial_testnet_peers = ["zebra-miner:8233"]
+crawl_new_peer_interval = "60s"
 
 [consensus]
 checkpoint_sync = false
