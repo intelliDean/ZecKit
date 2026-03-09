@@ -24,6 +24,7 @@ services:
   # ZEBRA MINER NODE
   # ========================================
   zebra-miner:
+    image: ${IMAGE_PREFIX:-zeckit}/zebra-miner:${TAG:-latest}
     build:
       context: ./docker/zebra
       dockerfile: Dockerfile
@@ -50,6 +51,7 @@ services:
   # ZEBRA SYNC NODE
   # ========================================
   zebra-sync:
+    image: ${IMAGE_PREFIX:-zeckit}/zebra-sync:${TAG:-latest}
     build:
       context: ./docker/zebra
       dockerfile: Dockerfile
@@ -79,6 +81,7 @@ services:
   # LIGHTWALLETD (Profile: lwd)
   # ========================================
   lightwalletd:
+    image: ${IMAGE_PREFIX:-zeckit}/lightwalletd:${TAG:-latest}
     build:
       context: ./docker/lightwalletd
       dockerfile: Dockerfile
@@ -109,6 +112,7 @@ services:
   # ZAINO INDEXER (Profile: zaino)
   # ========================================
   zaino:
+    image: ${IMAGE_PREFIX:-zeckit}/zaino:${TAG:-latest}
     build:
       context: ./docker/zaino
       dockerfile: Dockerfile
@@ -146,6 +150,7 @@ services:
   # ZINGO WALLET (Profile: lwd)
   # ========================================
   zingo-wallet-lwd:
+    image: ${IMAGE_PREFIX:-zeckit}/zingo:${TAG:-latest}
     build:
       context: ./docker/zingo
       dockerfile: Dockerfile
@@ -166,6 +171,7 @@ services:
   # ZINGO WALLET (Profile: zaino)
   # ========================================
   zingo-wallet-zaino:
+    image: ${IMAGE_PREFIX:-zeckit}/zingo:${TAG:-latest}
     build:
       context: ./docker/zingo
       dockerfile: Dockerfile
@@ -186,6 +192,7 @@ services:
   #  FAUCET SERVICE - LWD Profile
   # ========================================
   faucet-lwd:
+    image: ${IMAGE_PREFIX:-zeckit}/zeckit-faucet:${TAG:-latest}
     build:
       context: ./zeckit-faucet
       dockerfile: Dockerfile
@@ -222,6 +229,7 @@ services:
   #  FAUCET SERVICE - Zaino Profile
   # ========================================
   faucet-zaino:
+    image: ${IMAGE_PREFIX:-zeckit}/zeckit-faucet:${TAG:-latest}
     build:
       context: ./zeckit-faucet
       dockerfile: Dockerfile

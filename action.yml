@@ -77,9 +77,23 @@ runs:
         cd ${{ github.action_path }}/cli
         cargo build
       
+    - name: Registry Login
+      if: inputs.ghcr_token != ''
+      shell: bash
+      run: |
+        echo "${{ inputs.ghcr_token }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Pull pre-built images
+      shell: bash
+      run: |
+        export IMAGE_PREFIX="${{ inputs.image_prefix }}"
+        docker compose -f "${{ github.action_path }}/docker-compose.yml" pull || true
+
     - name: Run E2E Suite
       id: e2e
       shell: bash
+      env:
+        IMAGE_PREFIX: ${{ inputs.image_prefix }}
       run: |
         # Run the devnet
         "${{ github.action_path }}/cli/target/debug/zeckit" --project-dir "${{ github.action_path }}" up \
