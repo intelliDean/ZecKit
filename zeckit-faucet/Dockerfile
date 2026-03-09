@@ -4,21 +4,21 @@
 FROM rust:1.92-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    pkg-config \
-    libssl-dev \
-    libsqlite3-dev \
-    protobuf-compiler \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+  build-essential \
+  pkg-config \
+  libssl-dev \
+  libsqlite3-dev \
+  protobuf-compiler \
+  git \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
 # Copy everything
 COPY . .
 
-# Build release
-RUN cargo build --release
+# Build
+RUN cargo build
 
 # ========================================
 # Runtime Stage
@@ -26,15 +26,15 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    libssl3 \
-    libsqlite3-0 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+  ca-certificates \
+  libssl3 \
+  libsqlite3-0 \
+  curl \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -u 2001 -s /bin/bash faucet
 
-COPY --from=builder /build/target/release/zeckit-faucet /usr/local/bin/faucet
+COPY --from=builder /build/target/debug/zeckit-faucet /usr/local/bin/faucet
 RUN chmod +x /usr/local/bin/faucet
 
 RUN mkdir -p /var/zingo && chown -R faucet:faucet /var/zingo

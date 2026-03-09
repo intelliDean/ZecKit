@@ -60,24 +60,35 @@ runs:
         echo "Starting ZecKit E2E Action..."
         echo "Backend: ${{ inputs.backend }}"
         
+    - name: Cache ZecKit CLI
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ github.action_path }}/cli/target
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: zeckit-cli-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          zeckit-cli-${{ runner.os }}-
+
     - name: Build ZecKit CLI
       shell: bash
       run: |
         cd ${{ github.action_path }}/cli
-        cargo build --release
+        cargo build
       
     - name: Run E2E Suite
       id: e2e
       shell: bash
       run: |
         # Run the devnet
-        ./cli/target/release/zeckit --project-dir "${{ github.action_path }}" up \
+        ./cli/target/debug/zeckit --project-dir "${{ github.action_path }}" up \
           --backend "${{ inputs.backend }}" \
           --timeout "${{ inputs.startup_timeout_minutes }}" \
           --action-mode
         
         # Run the tests
-        ./cli/target/release/zeckit --project-dir "${{ github.action_path }}" test \
+        ./cli/target/debug/zeckit --project-dir "${{ github.action_path }}" test \
           --amount "${{ inputs.send_amount }}" \
           --memo "${{ inputs.send_memo }}" \
           --action-mode

@@ -34,8 +34,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/zaino/target \
-    cargo build --release --bin zainod --features no_tls_use_unencrypted_traffic && \
-    cp target/release/zainod /tmp/zainod
+    cargo build --bin zainod --features no_tls_use_unencrypted_traffic && \
+    cp target/debug/zainod /tmp/zainod
 
 # ========================================
 # Runtime Stage

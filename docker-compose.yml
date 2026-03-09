@@ -41,10 +41,10 @@ services:
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "curl -s -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"getblockcount\",\"params\":[],\"id\":\"health\"}' http://127.0.0.1:8232 || exit 1" ]
-      interval: 30s
+      interval: 10s
       timeout: 10s
       retries: 50
-      start_period: 60s
+      start_period: 30s
 
   # ========================================
   # ZEBRA SYNC NODE
@@ -70,10 +70,10 @@ services:
         condition: service_started
     healthcheck:
       test: [ "CMD-SHELL", "curl -s -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"getblockcount\",\"params\":[],\"id\":\"health\"}' http://127.0.0.1:8232 || exit 1" ]
-      interval: 30s
+      interval: 10s
       timeout: 10s
       retries: 50
-      start_period: 60s
+      start_period: 30s
 
   # ========================================
   # LIGHTWALLETD (Profile: lwd)
@@ -100,10 +100,10 @@ services:
       - lwd
     healthcheck:
       test: [ "CMD-SHELL", "/usr/local/bin/grpc_health_probe -addr=127.0.0.1:9067 || exit 1" ]
-      interval: 15s
+      interval: 5s
       timeout: 5s
       retries: 60
-      start_period: 60s
+      start_period: 30s
 
   # ========================================
   # ZAINO INDEXER (Profile: zaino)
@@ -137,10 +137,10 @@ services:
     user: "0:0"
     healthcheck:
       test: [ "CMD-SHELL", "curl -s http://127.0.0.1:9067 || exit 1" ]
-      interval: 15s
+      interval: 5s
       timeout: 5s
       retries: 60
-      start_period: 60s
+      start_period: 30s
 
   # ========================================
   # ZINGO WALLET (Profile: lwd)
@@ -213,10 +213,10 @@ services:
       - lwd
     healthcheck:
       test: [ "CMD-SHELL", "curl -s http://127.0.0.1:8080/health || exit 1" ]
-      interval: 15s
+      interval: 5s
       timeout: 5s
       retries: 60
-      start_period: 60s
+      start_period: 30s
 
   # ========================================
   #  FAUCET SERVICE - Zaino Profile
@@ -249,7 +249,7 @@ services:
       - zaino
     healthcheck:
       test: [ "CMD-SHELL", "curl -s http://127.0.0.1:8080/health || exit 1" ]
-      interval: 15s
+      interval: 5s
       timeout: 5s
       retries: 60
-      start_period: 60s
+      start_period: 30s
