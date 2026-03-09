@@ -44,11 +44,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Lowercase repo
+        id: repo
+        shell: bash
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           push: true
-          tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:latest
+          tags: ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
