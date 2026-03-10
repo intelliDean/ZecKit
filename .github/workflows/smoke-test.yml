@@ -78,8 +78,8 @@ jobs:
       - name: Run smoke tests
         run: |
           echo "Running smoke test suite..."
-          chmod +x tests/smoke/basic-health.sh
-          ./tests/smoke/basic-health.sh
+          chmod +x docker/healthchecks/check-zebra.sh
+          ./docker/healthchecks/check-zebra.sh
       
       - name: Collect Zebra logs
         if: always()
