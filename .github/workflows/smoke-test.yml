@@ -14,8 +14,8 @@ jobs:
     name: Zebra Smoke Test
     runs-on: ubuntu-latest
     
-    # Timeout after 10 minutes (devnet should be up much faster)
-    timeout-minutes: 10
+    # Timeout after 20 minutes
+    timeout-minutes: 20
     
     steps:
       - name: Checkout code
@@ -37,7 +37,12 @@ jobs:
           docker system prune -f || true
       
       - name: Start zeckit devnet
+        env:
+          IMAGE_PREFIX: ghcr.io/${{ github.repository }}
         run: |
+          echo "Pulling pre-built Zebra images..."
+          docker compose pull zebra-miner zebra-sync || true
+          
           echo "Starting Zebra regtest node..."
           docker compose up -d
       
