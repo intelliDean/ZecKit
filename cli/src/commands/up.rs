@@ -225,16 +225,23 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     println!();
     
     // ========================================================================
-    // STEP 7: Mine initial blocks
-    // ========================================================================
-    wait_for_mined_blocks(&pb, 101).await?;
-    
-    // ========================================================================
-    // STEP 8: Mine additional blocks for full maturity
+    // STEP 7: Mine initial blocks for maturity
     // ========================================================================
     println!();
-    println!("Mining additional blocks for maturity...");
-    mine_additional_blocks(100).await?;
+    
+    let current_blocks = get_block_count(&Client::new()).await.unwrap_or(0);
+    let target_blocks = 101;
+    
+    if current_blocks < target_blocks {
+        let needed = (target_blocks - current_blocks) as u32;
+        println!("Mining {} initial blocks for full maturity...", needed);
+        mine_additional_blocks(needed).await?;
+    }
+    
+    // ========================================================================
+    // STEP 8: Ensure blocks are fully synced
+    // ========================================================================
+    wait_for_mined_blocks(&pb, target_blocks).await?;
     
     // ========================================================================
     // STEP 9: Wait for blocks to propagate
@@ -502,8 +509,9 @@ async fn mine_additional_blocks(count: u32) -> Result<()> {
     
     println!("Mining {} additional blocks...", count);
     
-    for i in 1..=count {
-        let _ = client
+    let mut successful_mines = 0;
+    while successful_mines < count {
+        let res = client
             .post("http://127.0.0.1:8232")
             .json(&json!({
                 "jsonrpc": "2.0",
@@ -514,10 +522,23 @@ async fn mine_additional_blocks(count: u32) -> Result<()> {
             .timeout(Duration::from_secs(10))
             .send()
             .await;
-        
-        if i % 10 == 0 {
-            print!("\r  Mined {} / {} blocks", i, count);
-            io::stdout().flush().ok();
+            
+        match res {
+            Ok(resp) if resp.status().is_success() => {
+                successful_mines += 1;
+                if successful_mines % 10 == 0 || successful_mines == count {
+                    print!("\r  Mined {} / {} blocks", successful_mines, count);
+                    io::stdout().flush().ok();
+                }
+            }
+            Ok(resp) => {
+                // Not success status
+                sleep(Duration::from_millis(500)).await;
+            }
+            Err(_) => {
+                // Connection or timeout error
+                sleep(Duration::from_millis(500)).await;
+            }
         }
     }
     
