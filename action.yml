@@ -87,7 +87,11 @@ runs:
       shell: bash
       run: |
         export IMAGE_PREFIX="${{ inputs.image_prefix }}"
-        docker compose -f "${{ github.action_path }}/docker-compose.yml" pull
+        if [ "${{ inputs.backend }}" != "none" ]; then
+          docker compose -f "${{ github.action_path }}/docker-compose.yml" --profile "${{ inputs.backend }}" pull
+        else
+          docker compose -f "${{ github.action_path }}/docker-compose.yml" pull
+        fi
 
     - name: Run E2E Suite
       id: e2e
