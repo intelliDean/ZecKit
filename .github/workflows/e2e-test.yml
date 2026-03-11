@@ -79,6 +79,13 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
           
+          # Set IMAGE_PREFIX to pull pre-built images from GHCR
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          export IMAGE_PREFIX="ghcr.io/$REPO_LOWER"
+          
+          echo "Pulling pre-built images from $IMAGE_PREFIX..."
+          docker compose pull --profile zaino || true
+          
           # No --fresh flag, but volumes are already cleared above
           ./cli/target/release/zeckit up --backend zaino &
           PID=$!
@@ -144,7 +151,7 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
           
-          docker exec zeckit-zingo-wallet bash -c "echo -e 'balance\nquit' | zingo-cli --data-dir /var/zingo --server http://zaino:9067 --chain regtest --nosync" 2>/dev/null || echo "Could not retrieve balance"
+          docker compose exec -T faucet-zaino bash -c "echo -e 'balance\nquit' | zingo-cli --data-dir /var/zingo --server http://zaino:9067 --chain regtest --nosync" 2>/dev/null || echo "Could not retrieve balance"
           echo ""
       
       - name: Check faucet status
