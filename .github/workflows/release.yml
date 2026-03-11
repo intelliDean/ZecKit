@@ -16,9 +16,6 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             bin_name: zeckit-linux-x86_64
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            bin_name: zeckit-macos-x86_64
 
     runs-on: ${{ matrix.os }}
 
@@ -29,17 +26,17 @@ jobs:
         with:
           target: ${{ matrix.target }}
 
-      - name: Build CLI
+      - name: Build CLI (release mode)
         run: |
           cd cli
           cargo build --release --locked --target ${{ matrix.target }}
 
-      - name: Prepare binary
+      - name: Prepare binary + checksum
         run: |
           cp cli/target/${{ matrix.target }}/release/zeckit ${{ matrix.bin_name }}
           sha256sum ${{ matrix.bin_name }} > ${{ matrix.bin_name }}.sha256
 
-      - name: Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
