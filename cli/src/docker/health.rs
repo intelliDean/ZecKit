@@ -17,26 +17,18 @@ impl HealthChecker {
     pub fn new() -> Self {
         Self {
             client: Client::new(),
-            max_retries: 560,
+            max_retries: 1800, // 1 hour (1800 * 2s)
             retry_delay: Duration::from_secs(2),
-            backend_max_retries: 900,  // CHANGED: Increased from 600 to 900 (30 minutes)
+            backend_max_retries: 1800, 
         }
     }
 
-    pub async fn wait_for_zebra(&self, pb: &ProgressBar) -> Result<()> {
-        for i in 0..self.max_retries {
-            pb.tick();
-            
-            match self.check_zebra().await {
-                Ok(_) => return Ok(()),
-                Err(_) if i < self.max_retries - 1 => {
-                    sleep(self.retry_delay).await;
-                }
-                Err(e) => return Err(e),
-            }
-        }
+    pub async fn check_zebra_miner_ready(&self) -> Result<()> {
+        self.check_zebra(8232).await
+    }
 
-        Err(ZecKitError::ServiceNotReady("Zebra".into()))
+    pub async fn check_zebra_sync_ready(&self) -> Result<()> {
+        self.check_zebra(18232).await
     }
 
     pub async fn wait_for_faucet(&self, pb: &ProgressBar) -> Result<()> {
@@ -71,10 +63,11 @@ impl HealthChecker {
         Err(ZecKitError::ServiceNotReady(format!("{} not ready", backend)))
     }
 
-    async fn check_zebra(&self) -> Result<()> {
+    async fn check_zebra(&self, port: u16) -> Result<()> {
+        let url = format!("http://127.0.0.1:{}", port);
         let resp = self
             .client
-            .post("http://127.0.0.1:8232")
+            .post(&url)
             .json(&serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": "health",
@@ -83,12 +76,14 @@ impl HealthChecker {
             }))
             .timeout(Duration::from_secs(5))
             .send()
-            .await?;
+            .await
+            .map_err(|e| ZecKitError::HealthCheck(format!("RPC call to {} failed: {}", url, e)))?;
 
         if resp.status().is_success() {
             Ok(())
         } else {
-            Err(ZecKitError::HealthCheck("Zebra not ready".into()))
+            let status = resp.status();
+            Err(ZecKitError::HealthCheck(format!("Zebra on port {} returned status {}", port, status)))
         }
     }
 

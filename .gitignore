@@ -102,5 +102,6 @@ ehthumbs_vista.db
 actions-runner/
 *.bak
 
-# Zcash proving parameters (large binary files)
-zcash-params/
+
+
+zeckit-sample

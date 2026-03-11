@@ -4,13 +4,13 @@ use colored::*;
 use reqwest::Client;
 use serde_json::Value;
 
-pub async fn execute() -> Result<()> {
+pub async fn execute(project_dir: Option<String>) -> Result<()> {
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!("{}", "  ZecKit - Devnet Status".cyan().bold());
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!();
     
-    let compose = DockerCompose::new()?;
+    let compose = DockerCompose::new(project_dir)?;
     let containers = compose.ps()?;
     
     // Display container status

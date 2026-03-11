@@ -13,6 +13,10 @@ mod utils;
 #[command(about = "ZecKit - Developer toolkit for Zcash on Zebra", long_about = None)]
 #[command(version)]
 struct Cli {
+    /// Path to the ZecKit project root (overrides auto-detection)
+    #[arg(long, global = true)]
+    project_dir: Option<String>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -28,6 +32,14 @@ enum Commands {
         /// Force fresh start (remove volumes)
         #[arg(short, long)]
         fresh: bool,
+
+        /// Startup timeout in minutes
+        #[arg(long, default_value = "10")]
+        timeout: u64,
+
+        /// Run in action mode (generate artifacts)
+        #[arg(long)]
+        action_mode: bool,
     },
     
     /// Stop the ZecKit devnet
@@ -41,7 +53,19 @@ enum Commands {
     Status,
     
     /// Run smoke tests
-    Test,
+    Test {
+        /// Amount to send in E2E test
+        #[arg(long, default_value = "0.05")]
+        amount: f64,
+
+        /// Memo to use for E2E test
+        #[arg(long, default_value = "ZecKit E2E Transaction")]
+        memo: String,
+
+        /// Run in action mode (generate artifacts)
+        #[arg(long)]
+        action_mode: bool,
+    },
 }
 
 #[tokio::main]
@@ -49,17 +73,17 @@ async fn main() {
     let cli = Cli::parse();
     
     let result = match cli.command {
-        Commands::Up { backend, fresh } => {
-            commands::up::execute(backend, fresh).await
+        Commands::Up { backend, fresh, timeout, action_mode } => {
+            commands::up::execute(backend, fresh, timeout, action_mode, cli.project_dir).await
         }
         Commands::Down { purge } => {
-            commands::down::execute(purge).await
+            commands::down::execute(purge, cli.project_dir).await
         }
         Commands::Status => {
-            commands::status::execute().await
+            commands::status::execute(cli.project_dir).await
         }
-        Commands::Test => {
-            commands::test::execute().await
+        Commands::Test { amount, memo, action_mode } => {
+            commands::test::execute(amount, memo, action_mode, cli.project_dir).await
         }
     };
     

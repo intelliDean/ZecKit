@@ -24,14 +24,15 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/zebra/target \
-    cargo build --release --features internal-miner --bin zebrad && \
-    cp target/release/zebrad /tmp/zebrad
+    cargo build --features internal-miner --bin zebrad && \
+    cp target/debug/zebrad /tmp/zebrad
 
 # Runtime stage
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /tmp/zebrad /usr/local/bin/zebrad

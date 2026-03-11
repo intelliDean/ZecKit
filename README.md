@@ -2,14 +2,15 @@
 
 > A toolkit for Zcash Regtest development
 
-[![ZecKit E2E](https://img.shields.io/badge/GitHub%20Marketplace-ZecKit%20E2E-blue?logo=github)](https://github.com/marketplace/actions/zeckit-e2e)
-[![Action CI](https://github.com/zecdev/ZecKit/actions/workflows/ci-action-test.yml/badge.svg)](https://github.com/zecdev/ZecKit/actions/workflows/ci-action-test.yml)
+[![E2E Tests](https://github.com/Zecdev/ZecKit/actions/workflows/e2e-test.yml/badge.svg)](https://github.com/Zecdev/ZecKit/actions/workflows/e2e-test.yml)
+[![Smoke Test](https://github.com/Zecdev/ZecKit/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/Zecdev/ZecKit/actions/workflows/smoke-test.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 
 ---
 
 ## Project Status
 
-**Current Milestone:** M2 Complete - Shielded Transactions
+**Current Milestone:** M3 Complete - GitHub Action & CI
 
 ### What Works Now
 
@@ -23,22 +24,29 @@
 **M2 - Shielded Transactions**
 
 - zeckit CLI tool with automated setup
-- on-chain shielded transactions via ZingoLib
+- On-chain shielded transactions via ZingoLib
 - Faucet API with actual blockchain broadcasting
 - Backend toggle (lightwalletd or Zaino)
 - Automated mining with coinbase maturity
 - Unified Address (ZIP-316) support
 - Shield transparent funds to Orchard
 - Shielded send (Orchard to Orchard)
-- Comprehensive test suite (6 tests)
 
-**M3 - GitHub Action**
+**M3 - GitHub Action** ✅
 
-- Reusable GitHub Action for CI — published on [GitHub Marketplace](https://github.com/marketplace/actions/zeckit-e2e)
-- Golden E2E flow: generate UA → fund → autoshield → shielded send → rescan/sync → verify
-- Both backends (zaino + lwd) exercised in matrix
-- Structured outputs (txids, addresses, balances) and log artifacts
-- Full documentation in [docs/github-action.md](docs/github-action.md)
+- Reusable GitHub Action for CI (E2E Tests + Smoke Tests)
+- Two-node Zebra Regtest cluster (miner + sync)
+- Full E2E golden flow: fund → shield → shielded send verified on-chain
+- 7-test smoke suite passing in CI
+- Artifact upload on failure for easy triage
+- Continuous block mining (1 block / 15s) during tests
+
+**M4 - Docs & Quickstarts (Next)**
+
+- "2-minute local start" guide
+- "5-line CI setup" snippet for other repos
+- Compatibility matrix (Zebra / Zaino versions)
+- Demo video
 
 ---
 
@@ -148,17 +156,20 @@ Output:
   ZecKit - Running Smoke Tests
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  [1/6] Zebra RPC connectivity... PASS
-  [2/6] Faucet health check... PASS
-  [3/6] Faucet address retrieval... PASS
-  [4/6] Wallet sync capability... PASS
-  [5/6] Wallet balance and shield... PASS
-  [6/6] Shielded send (E2E)... PASS
+  [0/7] Cluster synchronization... WARN (non-fatal) Sync node lagging: Miner=217 Sync=0
+  [1/7] Zebra RPC connectivity (Miner)... PASS
+  [2/7] Faucet health check... PASS
+  [3/7] Faucet address retrieval... PASS
+  [4/7] Wallet sync capability... PASS
+  [5/7] Wallet balance and shield... PASS
+  [6/7] Shielded send (E2E)... PASS
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Tests passed: 6
+  Tests passed: 7
   Tests failed: 0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ All smoke tests PASSED!
 ```
 
 ### Switch Backends
@@ -193,18 +204,17 @@ docker volume rm zeckit_zebra-data zeckit_zaino-data zeckit_faucet-data
 
 ### Automated Tests
 
-The `zeckit test` command runs 6 comprehensive tests:
+The `zeckit test` command runs 7 tests:
 
-| Test                 | What It Validates                         |
-| -------------------- | ----------------------------------------- |
-| 1. Zebra RPC         | Zebra node is running and RPC responds    |
-| 2. Faucet Health     | Faucet service is healthy                 |
-| 3. Address Retrieval | Can get unified and transparent addresses |
-| 4. Wallet Sync       | Wallet can sync with blockchain           |
-| 5. Shield Funds      | Can shield transparent to Orchard         |
-| 6. Shielded Send     | E2E golden flow: Orchard to Orchard       |
-
-Tests 5 and 6 prove shielded transactions work.
+| Test | What It Validates |
+| ---- | ----------------- |
+| 0. Cluster Sync | Sync node height vs miner (warn-only) |
+| 1. Zebra RPC | Miner node RPC is live |
+| 2. Faucet Health | Faucet service is healthy |
+| 3. Address Retrieval | Can get unified + transparent addresses |
+| 4. Wallet Sync | Wallet can sync with blockchain |
+| 5. Shield Funds | Transparent → Orchard shielding works |
+| 6. Shielded Send | E2E golden flow: Orchard → Orchard |
 
 ### Manual Testing
 
@@ -485,11 +495,11 @@ Zcash ecosystem needs a standard way to:
 - Backend toggle
 - Comprehensive tests
 
-**M3 - GitHub Action** (Next)
+**M3 - GitHub Action** ✅ (Complete)
 
-- Reusable CI action
-- Pre-mined snapshots
-- Advanced workflows
+- Reusable CI action running on every push
+- E2E golden flow verified in CI
+- Full 7-test smoke suite
 
 ---
 
@@ -526,7 +536,7 @@ Contributions welcome. Please:
 1. Fork and create feature branch
 2. Test locally with both backends
 3. Run: `./cli/target/release/zeckit test`
-4. Ensure all 6 tests pass
+4. Ensure all 7 tests pass (test 0 is warn-only)
 5. Open PR with clear description
 
 ---
@@ -558,5 +568,5 @@ Dual-licensed under MIT OR Apache-2.0
 
 ---
 
-**Last Updated:** February 5, 2026  
-**Status:** M2 Complete - Shielded Transactions
+**Last Updated:** March 8, 2026
+**Status:** M3 Complete — CI passing (7/7 tests) ✅

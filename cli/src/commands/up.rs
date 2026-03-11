@@ -14,23 +14,23 @@ const MAX_WAIT_SECONDS: u64 = 60000;
 // Known transparent address from default seed "abandon abandon abandon..."
 const DEFAULT_FAUCET_ADDRESS: &str = "tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd";
 
-pub async fn execute(backend: String, fresh: bool) -> Result<()> {
+pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bool, project_dir: Option<String>) -> Result<()> {
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!("{}", "  ZecKit - Starting Devnet".cyan().bold());
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!();
     
-    let compose = DockerCompose::new()?;
+    let compose = DockerCompose::new(project_dir.clone())?;
     
     if fresh {
         println!("{}", "🧹 Cleaning up old data (fresh start)...".yellow());
         compose.down(true)?;
     }
     
-    let services = match backend.as_str() {
-        "lwd" => vec!["zebra", "faucet"],
-        "zaino" => vec!["zebra", "faucet"],
-        "none" => vec!["zebra", "faucet"],
+    let (services, profile) = match backend.as_str() {
+        "lwd" => (vec!["zebra-miner", "zebra-sync", "lightwalletd", "faucet-lwd"], "lwd"),
+        "zaino" => (vec!["zebra-miner", "zebra-sync", "zaino", "faucet-zaino"], "zaino"),
+        "none" => (vec!["zebra-miner", "zebra-sync"], "none"),
         _ => {
             return Err(ZecKitError::Config(format!(
                 "Invalid backend: {}. Use 'lwd', 'zaino', or 'none'", 
@@ -47,7 +47,7 @@ pub async fn execute(backend: String, fresh: bool) -> Result<()> {
     // ========================================================================
     println!("📝 Configuring Zebra mining address...");
     
-    match update_zebra_config_file(DEFAULT_FAUCET_ADDRESS) {
+    match update_zebra_config_file(DEFAULT_FAUCET_ADDRESS, project_dir.clone()) {
         Ok(_) => {
             println!("✓ Updated docker/configs/zebra.toml");
             println!("  Mining to: {}", DEFAULT_FAUCET_ADDRESS);
@@ -62,11 +62,8 @@ pub async fn execute(backend: String, fresh: bool) -> Result<()> {
     // ========================================================================
     // STEP 2: Build and start services (smart build - only when needed)
     // ========================================================================
-    if backend == "lwd" {
-        compose.up_with_profile("lwd", fresh)?;
-        println!();
-    } else if backend == "zaino" {
-        compose.up_with_profile("zaino", fresh)?;
+    if backend == "lwd" || backend == "zaino" {
+        compose.up_with_profile(profile, fresh)?;
         println!();
     } else {
         compose.up(&services)?;
@@ -88,24 +85,65 @@ pub async fn execute(backend: String, fresh: bool) -> Result<()> {
     let checker = HealthChecker::new();
     let start = std::time::Instant::now();
     
+    // Wait for Miner
+    println!("Waiting for Zebra Miner node to initialize...");
+    let mut last_error_miner = String::new();
+    let mut last_error_sync = String::new();
+    let mut last_error_print = std::time::Instant::now();
+
     loop {
         pb.tick();
-        
-        if checker.wait_for_zebra(&pb).await.is_ok() {
-            println!("[1/3] Zebra ready (100%)");
-            break;
+        match checker.check_zebra_miner_ready().await {
+            Ok(_) => {
+                println!("\n[1.1/3] Zebra Miner ready");
+                break;
+            }
+            Err(e) => {
+                let err_str = e.to_string();
+                if err_str != last_error_miner || last_error_print.elapsed().as_secs() > 10 {
+                    println!("  Miner: {}", err_str);
+                    last_error_miner = err_str;
+                    last_error_print = std::time::Instant::now();
+                }
+                
+                if start.elapsed().as_secs() > timeout * 60 {
+                    let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
+                    return Err(ZecKitError::ServiceNotReady(format!("Zebra Miner not ready after {} minutes: {}", timeout, e)));
+                }
+            }
         }
-        
-        let elapsed = start.elapsed().as_secs();
-        if elapsed < 120 {
-            let progress = (elapsed as f64 / 120.0 * 100.0).min(99.0) as u32;
-            print!("\r[1/3] Starting Zebra... {}%", progress);
-            io::stdout().flush().ok();
-            sleep(Duration::from_secs(1)).await;
-        } else {
-            return Err(ZecKitError::ServiceNotReady("Zebra not ready".into()));
-        }
+        sleep(Duration::from_secs(2)).await;
     }
+
+    // Wait for Sync Node
+    println!("Waiting for Zebra Sync node to initialize and peer...");
+    let start_sync = std::time::Instant::now();
+    let mut last_error_print = std::time::Instant::now();
+
+    loop {
+        pb.tick();
+        match checker.check_zebra_sync_ready().await {
+            Ok(_) => {
+                println!("\n[1.2/3] Zebra Sync Node ready");
+                break;
+            }
+            Err(e) => {
+                let err_str = e.to_string();
+                if err_str != last_error_sync || last_error_print.elapsed().as_secs() > 10 {
+                    println!("  Sync Node: {}", err_str);
+                    last_error_sync = err_str;
+                    last_error_print = std::time::Instant::now();
+                }
+
+                if start_sync.elapsed().as_secs() > timeout * 60 {
+                    let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
+                    return Err(ZecKitError::ServiceNotReady(format!("Zebra Sync Node not ready after {} minutes: {}", timeout, e)));
+                }
+            }
+        }
+        sleep(Duration::from_secs(2)).await;
+    }
+    println!("[1/3] Zebra Cluster ready (100%)");
     println!();
     
     // ========================================================================
@@ -172,7 +210,7 @@ pub async fn execute(backend: String, fresh: bool) -> Result<()> {
         Ok(addr) => {
             println!("✓ Faucet wallet address: {}", addr);
             if addr != DEFAULT_FAUCET_ADDRESS {
-                println!("{}", "⚠ Warning: Address mismatch!".to_string().yellow());
+                println!("{}", format!("⚠ Warning: Address mismatch!").yellow());
                 println!("{}", format!("  Expected: {}", DEFAULT_FAUCET_ADDRESS).yellow());
                 println!("{}", format!("  Got:      {}", addr).yellow());
                 println!("{}", "  This may cause funds to be lost!".yellow());
@@ -187,16 +225,23 @@ pub async fn execute(backend: String, fresh: bool) -> Result<()> {
     println!();
     
     // ========================================================================
-    // STEP 7: Mine initial blocks
-    // ========================================================================
-    wait_for_mined_blocks(&pb, 101).await?;
-    
-    // ========================================================================
-    // STEP 8: Mine additional blocks for full maturity
+    // STEP 7: Mine initial blocks for maturity
     // ========================================================================
     println!();
-    println!("Mining additional blocks for maturity...");
-    mine_additional_blocks(100).await?;
+    
+    let current_blocks = get_block_count(&Client::new()).await.unwrap_or(0);
+    let target_blocks = 101;
+    
+    if current_blocks < target_blocks {
+        let needed = (target_blocks - current_blocks) as u32;
+        println!("Mining {} initial blocks for full maturity...", needed);
+        mine_additional_blocks(needed).await?;
+    }
+    
+    // ========================================================================
+    // STEP 8: Ensure blocks are fully synced
+    // ========================================================================
+    wait_for_mined_blocks(&pb, target_blocks).await?;
     
     // ========================================================================
     // STEP 9: Wait for blocks to propagate
@@ -329,21 +374,67 @@ pub async fn execute(backend: String, fresh: bool) -> Result<()> {
     println!("{}", "   New blocks will be mined every 15 seconds".green());
     println!("{}", "   Press Ctrl+C to stop".green());
     
+    // Save artifacts if in action mode
+    if action_mode {
+        let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
+    }
+    
     Ok(())
 }
+
+async fn save_faucet_stats_artifact(action_mode: bool, project_dir_override: Option<String>) -> Result<()> {
+    if !action_mode {
+        return Ok(());
+    }
+
+    let project_dir = if let Some(dir) = project_dir_override {
+        std::path::PathBuf::from(dir)
+    } else {
+        let current_dir = std::env::current_dir()?;
+        if current_dir.ends_with("cli") {
+            current_dir.parent().unwrap().to_path_buf()
+        } else {
+            current_dir
+        }
+    };
+
+    let log_dir = project_dir.join("logs");
+    fs::create_dir_all(&log_dir).ok();
+    
+    match Client::new().get("http://127.0.0.1:8080/stats").send().await {
+        Ok(resp) => {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                let stats_path = log_dir.join("faucet-stats.json");
+                fs::write(
+                    &stats_path,
+                    serde_json::to_string_pretty(&json)?
+                ).ok();
+                println!("✓ Saved {:?}", stats_path);
+            }
+        }
+        Err(e) => println!("  Warning: Could not get faucet stats for artifact: {}", e),
+    }
+
+    Ok(())
+}
+
 
 // ============================================================================
 // NEW FUNCTION: Update zebra.toml on host before starting containers
 // ============================================================================
-fn update_zebra_config_file(address: &str) -> Result<()> {
+fn update_zebra_config_file(address: &str, project_dir_override: Option<String>) -> Result<()> {
     use regex::Regex;
     
-    // Get project root (same logic as DockerCompose::new())
-    let current_dir = std::env::current_dir()?;
-    let project_dir = if current_dir.ends_with("cli") {
-        current_dir.parent().unwrap().to_path_buf()
+    // Get project root
+    let project_dir = if let Some(dir) = project_dir_override {
+        std::path::PathBuf::from(dir)
     } else {
-        current_dir.clone()
+        let current_dir = std::env::current_dir()?;
+        if current_dir.ends_with("cli") {
+            current_dir.parent().unwrap().to_path_buf()
+        } else {
+            current_dir
+        }
     };
     
     let config_path = project_dir.join("docker/configs/zebra.toml");
@@ -418,8 +509,9 @@ async fn mine_additional_blocks(count: u32) -> Result<()> {
     
     println!("Mining {} additional blocks...", count);
     
-    for i in 1..=count {
-        let _ = client
+    let mut successful_mines = 0;
+    while successful_mines < count {
+        let res = client
             .post("http://127.0.0.1:8232")
             .json(&json!({
                 "jsonrpc": "2.0",
@@ -430,10 +522,23 @@ async fn mine_additional_blocks(count: u32) -> Result<()> {
             .timeout(Duration::from_secs(10))
             .send()
             .await;
-        
-        if i % 10 == 0 {
-            print!("\r  Mined {} / {} blocks", i, count);
-            io::stdout().flush().ok();
+            
+        match res {
+            Ok(resp) if resp.status().is_success() => {
+                successful_mines += 1;
+                if successful_mines % 10 == 0 || successful_mines == count {
+                    print!("\r  Mined {} / {} blocks", successful_mines, count);
+                    io::stdout().flush().ok();
+                }
+            }
+            Ok(resp) => {
+                // Not success status
+                sleep(Duration::from_millis(500)).await;
+            }
+            Err(_) => {
+                // Connection or timeout error
+                sleep(Duration::from_millis(500)).await;
+            }
         }
     }
     
@@ -495,6 +600,7 @@ async fn shield_transparent_funds() -> Result<()> {
 }
 
 async fn get_block_count(client: &Client) -> Result<u64> {
+    // Check miner first
     let resp = client
         .post("http://127.0.0.1:8232")
         .json(&json!({
@@ -509,9 +615,32 @@ async fn get_block_count(client: &Client) -> Result<u64> {
     
     let json: serde_json::Value = resp.json().await?;
     
-    json.get("result")
+    let miner_height = json.get("result")
         .and_then(|v| v.as_u64())
-        .ok_or_else(|| ZecKitError::HealthCheck("Invalid block count response".into()))
+        .ok_or_else(|| ZecKitError::HealthCheck("Invalid miner block count".into()))?;
+
+    // Check sync node parity
+    if let Ok(resp_sync) = client
+        .post("http://127.0.0.1:18232")
+        .json(&json!({
+            "jsonrpc": "2.0",
+            "id": "blockcount",
+            "method": "getblockcount",
+            "params": []
+        }))
+        .timeout(Duration::from_secs(2))
+        .send()
+        .await {
+            if let Ok(json_sync) = resp_sync.json::<serde_json::Value>().await {
+                if let Some(sync_height) = json_sync.get("result").and_then(|v| v.as_u64()) {
+                    if sync_height < miner_height {
+                        // Just log for now, don't fail yet as sync takes time
+                    }
+                }
+            }
+        }
+
+    Ok(miner_height)
 }
 
 async fn get_wallet_transparent_address_from_faucet() -> Result<String> {

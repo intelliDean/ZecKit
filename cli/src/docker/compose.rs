@@ -7,13 +7,17 @@ pub struct DockerCompose {
 }
 
 impl DockerCompose {
-    pub fn new() -> Result<Self> {
-        // Get project root (go up from cli/ directory)
-        let current_dir = std::env::current_dir()?;
-        let project_dir = if current_dir.ends_with("cli") {
-            current_dir.parent().unwrap().to_path_buf()
+    pub fn new(project_dir_override: Option<String>) -> Result<Self> {
+        let project_dir = if let Some(dir) = project_dir_override {
+            std::path::PathBuf::from(dir)
         } else {
-            current_dir
+            // Get project root (go up from cli/ directory)
+            let current_dir = std::env::current_dir()?;
+            if current_dir.ends_with("cli") {
+                current_dir.parent().unwrap().to_path_buf()
+            } else {
+                current_dir
+            }
         };
 
         Ok(Self {
