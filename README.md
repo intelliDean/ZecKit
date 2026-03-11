@@ -58,6 +58,16 @@
 - **Docker:** Engine 24.x + Compose v2
 - **Rust:** 1.70+ (for building CLI)
 - **Resources:** 2 CPU cores, 4GB RAM, 5GB disk
+- **GitHub Actions Runner:** A `self-hosted` runner is required for executing the ZecKit `smoke-test` CI pipeline (more details below).
+
+### Action Runner Setup
+
+For the repository's native CI workflows (like the Zebra Smoke Test) to execute successfully without timing out, a [self-hosted GitHub Action Runner](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners) MUST be configured and actively running on a machine that meets the prerequisites above.
+
+1. Navigate to your repository settings on GitHub (`Settings > Actions > Runners`).
+2. Click **New self-hosted runner**.
+3. Follow the provided instructions to download, configure, and execute the `./run.sh` daemon on your local workstation or VPS.
+4. Ensure the runner is tagged as `self-hosted`.
 
 ### Installation
 
