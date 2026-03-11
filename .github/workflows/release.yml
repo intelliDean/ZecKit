@@ -2,8 +2,13 @@ name: Build and Release ZecKit CLI
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+      - m3-implementation
+  pull_request:
+    branches:
+      - main
+      - m3-implementation
 
 permissions:
   contents: write
