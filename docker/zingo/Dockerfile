@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/zingolib/target \
-    cargo build --release --package zingo-cli --features regtest && \
+    cargo build --release --package zingo-cli && \
     cp target/release/zingo-cli /usr/local/bin/ && \
     chmod +x /usr/local/bin/zingo-cli
 
