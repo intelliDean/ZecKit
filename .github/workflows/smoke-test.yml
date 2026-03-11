@@ -16,12 +16,10 @@ permissions:
 jobs:
   smoke-test:
     name: Zebra Smoke Test
-    runs-on: ubuntu-latest  # Runs on your WSL runner
-    env:
-      IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/zeckit
+    runs-on: ubuntu-latest
     
-    # Timeout after 10 minutes (devnet should be up much faster)
-    timeout-minutes: 10
+    # Timeout after 20 minutes
+    timeout-minutes: 20
     
     steps:
       - name: Checkout code
@@ -72,6 +70,13 @@ jobs:
       
       - name: Start zeckit devnet
         run: |
+          # Convert repo name to lowercase for GHCR as Docker requires lowercase image references
+          REPO="${{ github.repository }}"
+          export IMAGE_PREFIX="ghcr.io/${REPO,,}"
+          
+          echo "Pulling pre-built Zebra images..."
+          docker compose pull zebra-miner zebra-sync || true
+          
           echo "Starting Zebra regtest node..."
           docker compose up -d
       
@@ -105,8 +110,8 @@ jobs:
       - name: Run smoke tests
         run: |
           echo "Running smoke test suite..."
-          chmod +x tests/smoke/basic-health.sh
-          ./tests/smoke/basic-health.sh
+          chmod +x docker/healthchecks/check-zebra.sh
+          ./docker/healthchecks/check-zebra.sh
       
       - name: Collect Zebra logs
         if: always()

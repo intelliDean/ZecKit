@@ -13,6 +13,12 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, project_dir: 
     println!();
 
     let client = Client::new();
+    
+    // Start background miner during tests so transactions get confirmed
+    if let Err(e) = start_background_miner().await {
+        println!("{} {}", "WARN (non-fatal): Could not start background miner".yellow(), e);
+    }
+    
     let mut passed = 0;
     let mut failed = 0;
 
@@ -565,8 +571,34 @@ async fn test_shielded_send(client: &Client, amount: f64, memo: String) -> Resul
             println!("    Message: {}", msg);
         }
         println!();
+        println!();
         return Err(crate::error::ZecKitError::HealthCheck(
             "Shielded send did not complete as expected".into()
         ));
     }
+}
+
+async fn start_background_miner() -> Result<()> {
+    tokio::spawn(async {
+        let client = Client::new();
+        let mut interval = tokio::time::interval(Duration::from_secs(15));
+        
+        loop {
+            interval.tick().await;
+            
+            let _ = client
+                .post("http://127.0.0.1:8232")
+                .json(&serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": "bgminer",
+                    "method": "generate",
+                    "params": [1]
+                }))
+                .timeout(Duration::from_secs(10))
+                .send()
+                .await;
+        }
+    });
+    
+    Ok(())
 }
