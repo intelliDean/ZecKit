@@ -45,7 +45,6 @@ build/
 *.zip
 
 # Rust (for future CLI in M2)
-Cargo.lock
 target/
 
 # Python (for faucet in M2)
