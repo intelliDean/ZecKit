@@ -488,9 +488,11 @@ async fn test_shielded_send(client: &Client, amount: f64, memo: String) -> Resul
     
     if balance.orchard < amount {
         println!("    Faucet has insufficient Orchard balance: {} ZEC", balance.orchard);
-        println!("    SKIP (need at least {} ZEC shielded)", amount);
+        println!("    FAIL (need at least {} ZEC shielded)", amount);
         println!();
-        return Ok(String::new());
+        return Err(crate::error::ZecKitError::HealthCheck(
+            format!("Insufficient Orchard balance: {} < {}", balance.orchard, amount)
+        ));
     }
     
     println!("    Faucet Orchard balance: {} ZEC", balance.orchard);
