@@ -105,11 +105,19 @@ runs:
           --timeout "${{ inputs.startup_timeout_minutes }}" \
           --action-mode
         
+        # Disable exit-on-error temporarily so we can parse outputs
+        set +e
+        
         # Run the tests
         "${{ github.action_path }}/cli/target/debug/zeckit" --project-dir "${{ github.action_path }}" test \
           --amount "${{ inputs.send_amount }}" \
           --memo "${{ inputs.send_memo }}" \
           --action-mode
+        
+        CLI_EXIT_CODE=$?
+        
+        # Re-enable exit-on-error
+        set -e
         
         # Extract metadata from logs if exists
         if [ -f logs/run-summary.json ]; then
@@ -121,6 +129,9 @@ runs:
         else
            echo "test_result=fail" >> $GITHUB_OUTPUT
         fi
+        
+        echo "Exiting with CLI code: $CLI_EXIT_CODE"
+        exit $CLI_EXIT_CODE
 
     - name: Collect Docker Logs
       if: always()
