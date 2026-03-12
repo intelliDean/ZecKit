@@ -428,17 +428,19 @@ async fn test_wallet_shield(client: &Client) -> Result<String> {
     } else if transparent_before > 0.0 {
         println!("    Wallet has {} ZEC transparent (too small to shield)", transparent_before);
         println!("    Need at least {} ZEC to cover shield + fee", min_shield_amount);
-        println!("    SKIP (insufficient balance)");
+        println!("    FAIL (insufficient transparent balance)");
         println!();
-        print!("  [5/6] Wallet balance and shield... ");
-        return Ok(String::new());
+        return Err(crate::error::ZecKitError::HealthCheck(
+            format!("Insufficient transparent balance for shielding: {} < {}", transparent_before, min_shield_amount)
+        ));
         
     } else {
         println!("    No balance found");
-        println!("    SKIP (needs mining to complete)");
+        println!("    FAIL (needs mining to complete)");
         println!();
-        print!("  [5/6] Wallet balance and shield... ");
-        return Ok(String::new());
+        return Err(crate::error::ZecKitError::HealthCheck(
+            "No balance found for shielding".into()
+        ));
     }
 }
 
