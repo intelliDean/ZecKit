@@ -122,6 +122,20 @@ runs:
            echo "test_result=fail" >> $GITHUB_OUTPUT
         fi
 
+    - name: Collect Docker Logs
+      if: always()
+      shell: bash
+      run: |
+        echo "Collecting container logs..."
+        cd "${{ github.action_path }}"
+        mkdir -p logs
+        docker ps -a > logs/containers.log 2>&1 || true
+        docker network ls > logs/networks.log 2>&1 || true
+        docker compose -f docker-compose.yml logs zebra-miner > logs/zebra.log 2>&1 || true
+        docker compose -f docker-compose.yml logs faucet-${{ inputs.backend }} > logs/faucet.log 2>&1 || true
+        docker compose -f docker-compose.yml logs lightwalletd > logs/lightwalletd.log 2>&1 || true
+        docker compose -f docker-compose.yml logs zaino > logs/zaino.log 2>&1 || true
+
     - name: Upload Artifacts
       if: |
         always() &&
