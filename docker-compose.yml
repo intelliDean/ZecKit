@@ -39,6 +39,7 @@ services:
       - RUST_LOG=info
     networks:
       - zeckit-network
+    hostname: zebra-miner
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "curl -s -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"getblockcount\",\"params\":[],\"id\":\"health\"}' http://127.0.0.1:8232 || exit 1" ]

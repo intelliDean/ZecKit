@@ -52,6 +52,21 @@
 
 ## Quick Start
 
+### Option A: Rapid CI Integration (Zero Install)
+The fastest way to use ZecKit if you just want to verify your own application's Zcash privacy logic in GitHub Actions.
+
+1.  **Initialize**: Run the following in your CLI (no install needed if you have Rust):
+    ```bash
+    cargo run --package zeckit -- init --backend zaino
+    ```
+2.  **Commit**: Push the generated `.github/workflows/zeckit-e2e.yml` to your repo.
+3.  **Done**: GitHub will now spin up a full Zcash devnet on every PR and verify your logic.
+
+---
+
+### Option B: Local Standalone Development
+Use this if you want to develop and debug your application manually on your laptop.
+
 ### Prerequisites
 
 - **OS:** Linux (Ubuntu 22.04+), WSL2, or macOS with Docker Desktop 4.34+
@@ -160,6 +175,17 @@ Subsequent startups: About 30 seconds (uses existing data)
 
 ```bash
 ./cli/target/release/zeckit down
+```
+
+### Auto-Initialize CI Workflow
+Generate a professional GitHub Actions E2E suite for your own repository in one command.
+
+```bash
+# Default (Zaino backend)
+./cli/target/release/zeckit init
+
+# Custom backend and output path
+./cli/target/release/zeckit init --backend lwd --output .github/workflows/custom-test.yml
 ```
 
 ### Run Test Suite

@@ -90,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "zeckit_faucet=debug,tower_http=debug".into()),
+                .unwrap_or_else(|_| "zeckit_faucet=debug,zingolib=debug,zingo_sync=debug,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -138,8 +138,8 @@ async fn main() -> anyhow::Result<()> {
         let mut wallet_guard = wallet.write().await;
         
         match tokio::time::timeout(
-            Duration::from_secs(120),
-            wallet_guard.sync()  // ← CHANGED from sync() to sync_and_await()
+            Duration::from_secs(600), // Increase to 10 minutes
+            wallet_guard.sync()
         ).await {
             Ok(Ok(result)) => {
                 info!(" Initial sync completed successfully");

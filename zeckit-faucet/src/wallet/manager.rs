@@ -181,21 +181,83 @@ impl WalletManager {
         info!("Shielding {} ZEC from transparent to orchard", balance.transparent_zec());
         
         // Step 1: Propose the shield transaction
-        let _proposal = self.client
-            .propose_shield(zip32::AccountId::ZERO)
-            .await
-            .map_err(|e| FaucetError::Wallet(format!("Shield proposal failed: {}", e)))?;
-        
+        let proposal_result = self.client.propose_shield(zip32::AccountId::ZERO).await;
+
+        let _proposal = match proposal_result {
+            Ok(p) => p,
+            Err(e) if e.to_string().contains("additional change output") => {
+                 return self.perform_fallback_shield_transfer(balance.transparent).await;
+            },
+            Err(e) => return Err(FaucetError::Wallet(format!("Shield proposal failed: {}", e)))
+        };
+
         // Step 2: Send the stored proposal
+        let send_result = self.client.send_stored_proposal(true).await;
+
+        match send_result {
+            Ok(txids) => {
+                let txid = txids.first().to_string();
+                info!("Shielded transparent funds in txid: {}", txid);
+                Ok(txid)
+            },
+            Err(e) if e.to_string().contains("additional change output") => {
+                 self.perform_fallback_shield_transfer(balance.transparent).await
+            },
+            Err(e) => Err(FaucetError::Wallet(format!("Shield send failed: {}", e)))
+        }
+    }
+
+    async fn perform_fallback_shield_transfer(&mut self, utxo_total: Zatoshis) -> Result<String, FaucetError> {
+        info!("Fallback: Shielding failed (change output error). Attempting manual transfer...");
+        let fee = Zatoshis::from_u64(10_000).unwrap(); // Use 0.0001 ZEC fee
+        
+        if utxo_total <= fee {
+            return Err(FaucetError::Wallet("Insufficient funds for fallback shielding".to_string()));
+        }
+        
+        let amount_to_send = (utxo_total - fee).unwrap();
+        let recipient = self.get_unified_address().await?;
+        
+        self.send_from_transparent(&recipient, amount_to_send.into_u64() as f64 / 100_000_000.0, Some("ZecKit Fallback Shield".to_string())).await
+    }
+
+    /// Helper to send funds specifically from transparent pool
+    pub async fn send_from_transparent(
+        &mut self,
+        to_address: &str,
+        amount_zec: f64,
+        memo: Option<String>,
+    ) -> Result<String, FaucetError> {
+        info!("Sending {} ZEC (from transparent) to {}", amount_zec, &to_address[..to_address.len().min(16)]);
+
+        let amount_zatoshis = (amount_zec * 100_000_000.0) as u64;
+        let recipient_address = to_address.parse()
+            .map_err(|e| FaucetError::Wallet(format!("Invalid address: {}", e)))?;
+        let amount = zcash_protocol::value::Zatoshis::from_u64(amount_zatoshis)
+            .map_err(|_| FaucetError::Wallet("Invalid amount".to_string()))?;
+
+        let memo_bytes = if let Some(memo_text) = &memo {
+            let bytes = memo_text.as_bytes();
+            let mut padded = [0u8; 512];
+            padded[..bytes.len().min(512)].copy_from_slice(&bytes[..bytes.len().min(512)]);
+            Some(MemoBytes::from_bytes(&padded).unwrap())
+        } else {
+            None
+        };
+
+        let payment = Payment::new(recipient_address, amount, memo_bytes, None, None, vec![])
+            .ok_or_else(|| FaucetError::Wallet("Failed to create payment".to_string()))?;
+
+        let request = TransactionRequest::new(vec![payment])
+            .map_err(|e| FaucetError::Wallet(format!("Failed to create request: {}", e)))?;
+
+        // In ZingoLib, quick_send will automatically pick inputs. 
         let txids = self.client
-            .send_stored_proposal(true)
+            .quick_send(request, zip32::AccountId::ZERO, false)
             .await
-            .map_err(|e| FaucetError::Wallet(format!("Shield send failed: {}", e)))?;
-        
-        let txid = txids.first().to_string();
-        
-        info!("Shielded transparent funds in txid: {}", txid);
-        Ok(txid)
+            .map_err(|e| FaucetError::TransactionFailed(format!("Fallback send failed: {}", e)))?;
+
+        Ok(txids.first().to_string())
     }
 
     pub async fn send_transaction(

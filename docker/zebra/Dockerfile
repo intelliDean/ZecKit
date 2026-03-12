@@ -15,6 +15,8 @@ WORKDIR /build/zebra
 
 # CACHE DEPENDENCIES FIRST
 ENV CARGO_HOME=/usr/local/cargo
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/zebra/target \

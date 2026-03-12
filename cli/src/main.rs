@@ -66,6 +66,22 @@ enum Commands {
         #[arg(long)]
         action_mode: bool,
     },
+
+    /// Initialize a GitHub Actions workflow for this project
+    #[command(long_about = "Generates a standardized GitHub Actions workflow (.github/workflows/zeckit-e2e.yml) that automatically spins up a 2-node Zebra cluster, configured with your choice of privacy backend and an embedded shielded faucet.")]
+    Init {
+        /// Light-client backend to use in CI: lwd (lightwalletd) or zaino
+        #[arg(short, long, default_value = "zaino", value_parser = ["zaino", "lwd"])]
+        backend: String,
+
+        /// Force overwrite of an existing workflow file
+        #[arg(short, long)]
+        force: bool,
+
+        /// Custom file path for the generated workflow (e.g. .github/workflows/custom.yml)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -84,6 +100,9 @@ async fn main() {
         }
         Commands::Test { amount, memo, action_mode } => {
             commands::test::execute(amount, memo, action_mode, cli.project_dir).await
+        }
+        Commands::Init { backend, force, output } => {
+            commands::init::execute(backend, force, output, cli.project_dir).await
         }
     };
     

@@ -18,6 +18,8 @@ WORKDIR /build
 COPY . .
 
 # Build
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 RUN cargo build
 
 # ========================================
