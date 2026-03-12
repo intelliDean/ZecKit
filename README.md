@@ -60,6 +60,15 @@
 - **Resources:** 2 CPU cores, 4GB RAM, 5GB disk
 - **GitHub Actions Runner:** A `self-hosted` runner is required for executing the ZecKit `smoke-test` CI pipeline (more details below).
 
+## Architecture: How ZecKit Works
+Many developers assume ZecKit is strictly a GitHub Action. **It is not.**
+ZecKit is deeply composed of three layers:
+1. **The Regtest Cluster:** A completely containerized Docker Compose environment running an isolated Zcash blockchain (Zebra), an indexing backend (Zaino or lightwalletd), and a custom Faucet for funding.
+2. **The Rust CLI:** The `zeckit up` and `zeckit test` commands orchestrate the heavy lifting: pinging health checks, dynamically driving the background miner, extracting state, and executing golden-flow tests.
+3. **The GitHub Action:** A thin wrapper (`action.yml`) that simply downloads the CLI and runs it inside your CI pipeline to seamlessly verify your own downstream applications against a disposable Regtest node.
+
+**You can run ZecKit identically on your local laptop as it runs in the cloud.** Check out the [integrated application](https://github.com/intelliDean/zeckit-sample-test/tree/main/example-app) in the sample repository for a tutorial on how a standard Node.js Web3 application interacts with the local Regtest devnet.
+
 ### Action Runner Setup
 
 For the repository's native CI workflows (like the Zebra Smoke Test) to execute successfully without timing out, a [self-hosted GitHub Action Runner](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners) MUST be configured and actively running on a machine that meets the prerequisites above.
