@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🚀 Start ZecKit Devnet
-        uses: zecdev/ZecKit@main
+        uses: intelliDean/ZecKit@m3-implementation
         with:
           backend: '{backend}'
           startup_timeout_minutes: '15'
