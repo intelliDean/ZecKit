@@ -31,7 +31,7 @@ pub async fn execute(
     backend: String,
     force: bool,
     output: Option<String>,
-    project_dir: Option<String>,
+    _project_dir: Option<String>,
 ) -> Result<()> {
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!("  {}", "ZecKit - Workflow Generator".cyan().bold());
@@ -42,11 +42,9 @@ pub async fn execute(
         PathBuf::from(out)
     } else {
         // Default to .github/workflows/zeckit-e2e.yml in the current dir
-        let base_dir = if let Some(ref dir) = project_dir {
-            PathBuf::from(dir)
-        } else {
-            std::env::current_dir().map_err(|e| ZecKitError::Io(e))?
-        };
+        // Note: We ignore project_dir here because 'init' should target the user's project,
+        // while project_dir points to the toolkit resources.
+        let base_dir = std::env::current_dir().map_err(|e| ZecKitError::Io(e))?;
         base_dir.join(".github").join("workflows").join("zeckit-e2e.yml")
     };
 
