@@ -146,6 +146,10 @@ runs:
         docker compose -f docker-compose.yml logs faucet-${{ inputs.backend }} > logs/faucet.log 2>&1 || true
         docker compose -f docker-compose.yml logs lightwalletd > logs/lightwalletd.log 2>&1 || true
         docker compose -f docker-compose.yml logs zaino > logs/zaino.log 2>&1 || true
+        
+        # Copy to workspace to avoid relative path tracking error in upload-artifact@v4
+        mkdir -p "${{ github.workspace }}/zeckit-e2e-logs-${{ inputs.backend }}"
+        cp -r logs/* "${{ github.workspace }}/zeckit-e2e-logs-${{ inputs.backend }}/" || true
 
     - name: Upload Artifacts
       if: |
@@ -154,5 +158,5 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: zeckit-e2e-logs-${{ inputs.backend }}-${{ github.run_number }}
-        path: ${{ github.action_path }}/logs/
+        path: ${{ github.workspace }}/zeckit-e2e-logs-${{ inputs.backend }}/
         retention-days: 14
