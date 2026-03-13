@@ -157,6 +157,6 @@ runs:
         (inputs.upload_artifacts == 'always' || (inputs.upload_artifacts == 'on-failure' && steps.e2e.outputs.test_result != 'pass'))
       uses: actions/upload-artifact@v4
       with:
-        name: zeckit-e2e-logs-${{ inputs.backend }}-${{ github.run_number }}
+        name: zeckit-e2e-logs-${{ github.job }}-${{ inputs.backend }}-${{ github.run_number }}
         path: ${{ github.workspace }}/zeckit-e2e-logs-${{ inputs.backend }}/
         retention-days: 14
