@@ -180,6 +180,8 @@ Subsequent startups: About 30 seconds (uses existing data)
 ### Auto-Initialize CI Workflow
 Generate a professional GitHub Actions E2E suite for your own repository in one command.
 
+This command will automatically detect your project structure and drop a complete `.github/workflows/zeckit-e2e.yml` file into your repository. This file is pre-configured to spin up a Zeckit Regtest node and run your project's tests against it!
+
 ```bash
 # Default (Zaino backend)
 ./cli/target/release/zeckit init
