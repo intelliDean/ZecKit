@@ -116,6 +116,15 @@ cd ..
 
 # Run test suite
 ./cli/target/release/zeckit test
+
+### How to Start Local Devnet (Quick Reference)
+
+For detailed instructions and service health checks, see the [Startup Guide](startup_guide.md).
+
+1.  **Build the CLI**: `cd cli && cargo build --release && cd ..`
+2.  **Launch the Network**: `./cli/target/release/zeckit up --backend zaino`
+3.  **Check Health**: `curl http://localhost:8080/stats`
+4.  **Stop**: `./cli/target/release/zeckit down`
 ```
 
 ### Verify It's Working
