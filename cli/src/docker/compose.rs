@@ -130,11 +130,16 @@ impl DockerCompose {
     pub fn down(&self, volumes: bool) -> Result<()> {
         let mut cmd = Command::new("docker");
         cmd.arg("compose")
+            .arg("--profile")
+            .arg("zaino")
+            .arg("--profile")
+            .arg("lwd")
             .arg("down")
             .current_dir(&self.project_dir);
 
         if volumes {
             cmd.arg("-v");
+            cmd.arg("--remove-orphans");
         }
 
         let output = cmd.output()?;

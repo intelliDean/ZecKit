@@ -534,7 +534,7 @@ async fn mine_additional_blocks(count: u32) -> Result<()> {
                 // Throttling: add 100ms delay between successful mines to avoid overwhelming the indexer
                 sleep(Duration::from_millis(100)).await;
             }
-            Ok(resp) => {
+            Ok(_resp) => {
                 // Not success status
                 sleep(Duration::from_millis(500)).await;
             }
