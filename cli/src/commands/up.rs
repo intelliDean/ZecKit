@@ -247,7 +247,8 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     // STEP 9: Wait for blocks to propagate
     // ========================================================================
     println!();
-    println!("Waiting for blocks to propagate...");
+    println!("Waiting for blocks to propagate and indexer to catch up...");
+    sleep(Duration::from_secs(30)).await;
     sleep(Duration::from_secs(10)).await;
     
     // ========================================================================
@@ -530,6 +531,8 @@ async fn mine_additional_blocks(count: u32) -> Result<()> {
                     print!("\r  Mined {} / {} blocks", successful_mines, count);
                     io::stdout().flush().ok();
                 }
+                // Throttling: add 100ms delay between successful mines to avoid overwhelming the indexer
+                sleep(Duration::from_millis(100)).await;
             }
             Ok(resp) => {
                 // Not success status
@@ -578,7 +581,7 @@ async fn shield_transparent_funds() -> Result<()> {
     
     let resp = client
         .post("http://127.0.0.1:8080/shield")
-        .timeout(Duration::from_secs(60))
+        .timeout(Duration::from_secs(300)) // Increase to 5 minutes
         .send()
         .await?;
     

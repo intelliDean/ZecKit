@@ -107,14 +107,15 @@ impl WalletManager {
             let mnemonic = bip0039::Mnemonic::from_phrase(seed_phrase)
                 .map_err(|e| FaucetError::Wallet(format!("Invalid mnemonic phrase: {}", e)))?;
             
-            // Create wallet from mnemonic
+            // Create wallet from mnemonic - use current chain height as birthday
+            // to avoid scanning the entire chain history
             let wallet = LightWallet::new(
                 chain_type,
                 WalletBase::Mnemonic {
                     mnemonic,
                     no_of_accounts: std::num::NonZeroU32::new(1).unwrap(),
                 },
-                BlockHeight::from_u32(0),
+                BlockHeight::from_u32(1), // Scan from regtest genesis
                 config.wallet_settings.clone(),
             ).map_err(|e| {
                 FaucetError::Wallet(format!("Failed to create wallet: {}", e))

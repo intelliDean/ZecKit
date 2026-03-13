@@ -112,6 +112,9 @@ async fn main() -> anyhow::Result<()> {
     // ═══════════════════════════════════════════════════════════
     let chain_height = wait_for_zaino(&config.lightwalletd_uri, 60).await?;
     info!("🔗 Connected to Zaino at block {}", chain_height);
+    // Extra grace period: give Zaino a moment to fully index the chain before we sync
+    info!("⏳ Allowing Zaino indexer to stabilize (10s)...");
+    sleep(Duration::from_secs(10)).await;
 
     // ═══════════════════════════════════════════════════════════
     // STEP 4: Initialize Wallet
@@ -130,29 +133,80 @@ async fn main() -> anyhow::Result<()> {
     info!("  Address: {}", address);
 
     // ═══════════════════════════════════════════════════════════
-    // STEP 5: Initial Sync 
+    // STEP 5: Initial Sync (Retrying with reinit on connection errors)
     // ═══════════════════════════════════════════════════════════
     info!("🔄 Performing initial wallet sync...");
     
-    {
-        let mut wallet_guard = wallet.write().await;
+    let mut sync_attempts = 0u32;
+    let max_sync_attempts = 8;
+    
+    loop {
+        sync_attempts += 1;
+        info!("  [Attempt #{}/{}] Syncing wallet...", sync_attempts, max_sync_attempts);
         
-        match tokio::time::timeout(
-            Duration::from_secs(600), // Increase to 10 minutes
-            wallet_guard.sync()
-        ).await {
-            Ok(Ok(result)) => {
-                info!(" Initial sync completed successfully");
-                tracing::debug!("Sync result: {:?}", result);
+        let sync_result = {
+            let mut wallet_guard = wallet.write().await;
+            tokio::time::timeout(
+                Duration::from_secs(300),
+                wallet_guard.sync()
+            ).await
+        };
+        
+        match sync_result {
+            Ok(Ok(_)) => {
+                info!(" ✓ Initial sync completed successfully");
+                break;
             }
             Ok(Err(e)) => {
-                tracing::warn!("⚠ Initial sync failed: {} (continuing anyway)", e);
+                let err_str = e.to_string();
+                let is_connection_err = err_str.contains("HTTP Request Error")
+                    || err_str.contains("connection refused")
+                    || err_str.contains("transport error")
+                    || err_str.contains("sync mode error"); // stuck lock
+                
+                if is_connection_err && sync_attempts < max_sync_attempts {
+                    tracing::warn!("  ⚠ Sync #{} failed (connection/lock error): {} — reinitializing wallet client...", sync_attempts, e);
+                    // CRITICAL FIX: Reinitialize WalletManager to clear Zingolib's stuck sync flag
+                    sleep(Duration::from_secs(15)).await;
+                    match WalletManager::new(config.zingo_data_dir.clone(), config.lightwalletd_uri.clone()).await {
+                        Ok(new_wallet) => {
+                            let mut w = wallet.write().await;
+                            *w = new_wallet;
+                            drop(w);
+                        }
+                        Err(reinit_err) => {
+                            tracing::warn!("  Failed to reinitialize wallet: {} (will retry sync anyway)", reinit_err);
+                        }
+                    }
+                } else if sync_attempts >= max_sync_attempts {
+                    tracing::error!(" ❌ Sync failed after {} attempts: {} (continuing with 0 balance)", sync_attempts, e);
+                    break;
+                } else {
+                    tracing::error!(" ❌ Initial sync failed (non-connection error): {} (continuing anyway)", e);
+                    break;
+                }
             }
             Err(_) => {
-                tracing::warn!("⏱ Initial sync timed out (continuing anyway)");
+                tracing::warn!("  ⏱ Sync #{} timed out locally (reinitializing wallet client...)", sync_attempts);
+                if sync_attempts < max_sync_attempts {
+                    sleep(Duration::from_secs(10)).await;
+                    match WalletManager::new(config.zingo_data_dir.clone(), config.lightwalletd_uri.clone()).await {
+                        Ok(new_wallet) => {
+                            let mut w = wallet.write().await;
+                            *w = new_wallet;
+                            drop(w);
+                        }
+                        Err(reinit_err) => {
+                            tracing::warn!("  Failed to reinitialize wallet: {} (will retry sync anyway)", reinit_err);
+                        }
+                    }
+                } else {
+                    tracing::error!(" ❌ Sync timed out after {} attempts (continuing with 0 balance)", sync_attempts);
+                    break;
+                }
             }
         }
-    } // Release write lock
+    }
 
     // Check balance after sync
     match wallet.read().await.get_balance().await {
