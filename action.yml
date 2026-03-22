@@ -87,10 +87,11 @@ runs:
       shell: bash
       run: |
         export IMAGE_PREFIX="${{ inputs.image_prefix }}"
+        echo "Attempting to pull images with prefix: $IMAGE_PREFIX"
         if [ "${{ inputs.backend }}" != "none" ]; then
-          docker compose -f "${{ github.action_path }}/docker-compose.yml" --profile "${{ inputs.backend }}" pull
+          docker compose -f "${{ github.action_path }}/docker-compose.yml" --profile "${{ inputs.backend }}" pull || echo "::warning:: Failed to pull images. They will be built from source."
         else
-          docker compose -f "${{ github.action_path }}/docker-compose.yml" pull
+          docker compose -f "${{ github.action_path }}/docker-compose.yml" pull || echo "::warning:: Failed to pull images. They will be built from source."
         fi
 
     - name: Run E2E Suite
