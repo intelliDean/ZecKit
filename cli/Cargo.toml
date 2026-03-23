@@ -23,6 +23,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = "0.4"
 
+# Standalone embedded assets
+rust-embed = { version = "8.0", features = ["include-exclude"] }
+dirs = "5.0"
+
 # HTTP client
 reqwest = { version = "0.11", features = ["json"] }
 

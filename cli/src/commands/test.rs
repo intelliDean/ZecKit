@@ -164,12 +164,9 @@ async fn save_run_summary_artifact(
     let project_dir = if let Some(dir) = project_dir_override {
         std::path::PathBuf::from(dir)
     } else {
-        let current_dir = std::env::current_dir()?;
-        if current_dir.ends_with("cli") {
-            current_dir.parent().unwrap().to_path_buf()
-        } else {
-            current_dir
-        }
+        dirs::home_dir()
+            .ok_or_else(|| crate::error::ZecKitError::Config("Could not find home directory".into()))?
+            .join(".zeckit")
     };
 
     let log_dir = project_dir.join("logs");

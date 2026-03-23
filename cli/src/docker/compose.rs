@@ -1,5 +1,7 @@
 use crate::error::{Result, ZecKitError};
 use std::process::{Command, Stdio};
+use std::fs;
+use crate::assets::{ConfigAssets, ComposeAsset};
 
 #[derive(Clone)]
 pub struct DockerCompose {
@@ -11,14 +13,44 @@ impl DockerCompose {
         let project_dir = if let Some(dir) = project_dir_override {
             std::path::PathBuf::from(dir)
         } else {
-            // Get project root (go up from cli/ directory)
-            let current_dir = std::env::current_dir()?;
-            if current_dir.ends_with("cli") {
-                current_dir.parent().unwrap().to_path_buf()
-            } else {
-                current_dir
-            }
+            dirs::home_dir()
+                .ok_or_else(|| ZecKitError::Config("Could not find home directory".into()))?
+                .join(".zeckit")
         };
+
+        // Create the base directory
+        fs::create_dir_all(&project_dir)?;
+        
+        // Extract Compose file
+        if let Some(compose_file) = ComposeAsset::get("docker-compose.yml") {
+            let mut content = String::from_utf8_lossy(&compose_file.data).to_string();
+            
+            // Strip out build blocks so docker-compose doesn't look for local directories
+            let build_blocks = [
+                "    build:\n      context: ./docker/zebra\n      dockerfile: Dockerfile\n",
+                "    build:\n      context: ./docker/lightwalletd\n      dockerfile: Dockerfile\n",
+                "    build:\n      context: ./docker/zaino\n      dockerfile: Dockerfile\n      args:\n        - NO_TLS=true\n        - RUST_VERSION=1.91.1\n",
+                "    build:\n      context: ./docker/zingo\n      dockerfile: Dockerfile\n",
+                "    build:\n      context: ./zeckit-faucet\n      dockerfile: Dockerfile\n",
+            ];
+            
+            for block in build_blocks.iter() {
+                content = content.replace(block, "");
+            }
+            
+            fs::write(project_dir.join("docker-compose.yml"), content)?;
+        }
+
+        // Extract configs
+        let configs_dir = project_dir.join("docker").join("configs");
+        fs::create_dir_all(&configs_dir)?;
+        
+        for file in ConfigAssets::iter() {
+            if let Some(embedded_file) = ConfigAssets::get(&file) {
+                let target = configs_dir.join(file.as_ref());
+                fs::write(&target, embedded_file.data.as_ref())?;
+            }
+        }
 
         Ok(Self {
             project_dir: project_dir.to_string_lossy().to_string(),
@@ -84,29 +116,29 @@ impl DockerCompose {
     }
 
     /// Start services with profile, building only if needed
-    pub fn up_with_profile(&self, profile: &str, force_build: bool) -> Result<()> {
-        let needs_build = force_build || !self.images_exist(profile);
+    pub fn up_with_profile(&self, profile: &str, _force_build: bool) -> Result<()> {
+        let needs_pull = !self.images_exist(profile);
         
-        if needs_build {
-            println!("Building Docker images for profile '{}'...", profile);
-            println!("(This may take 10-20 minutes on first build)");
+        if needs_pull {
+            println!("Pulling Docker images for profile '{}'...", profile);
+            println!("(This may take a few minutes)");
             println!();
             
-            // Build with LIVE output instead of silent
-            let build_status = Command::new("docker")
+            // Pull with LIVE output instead of silent
+            let pull_status = Command::new("docker")
                 .arg("compose")
                 .arg("--profile")
                 .arg(profile)
-                .arg("build")
+                .arg("pull")
                 .current_dir(&self.project_dir)
                 .status()  // This shows output in real-time!
-                .map_err(|e| ZecKitError::Docker(format!("Failed to start build: {}", e)))?;
+                .map_err(|e| ZecKitError::Docker(format!("Failed to start pull: {}", e)))?;
 
-            if !build_status.success() {
-                return Err(ZecKitError::Docker("Image build failed".into()));
+            if !pull_status.success() {
+                return Err(ZecKitError::Docker("Image pull failed".into()));
             }
 
-            println!("✓ Images built successfully");
+            println!("✓ Images pulled successfully");
             println!();
         }
 

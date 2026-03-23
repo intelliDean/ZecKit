@@ -7,6 +7,7 @@ mod docker;
 mod config;
 mod error;
 mod utils;
+pub mod assets;
 
 #[derive(Parser)]
 #[command(name = "zeckit")]

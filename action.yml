@@ -83,17 +83,6 @@ runs:
       run: |
         echo "${{ inputs.ghcr_token }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-    - name: Pull pre-built images
-      shell: bash
-      run: |
-        export IMAGE_PREFIX="${{ inputs.image_prefix }}"
-        echo "Attempting to pull images with prefix: $IMAGE_PREFIX"
-        if [ "${{ inputs.backend }}" != "none" ]; then
-          docker compose -f "${{ github.action_path }}/docker-compose.yml" --profile "${{ inputs.backend }}" pull || echo "::warning:: Failed to pull images. They will be built from source."
-        else
-          docker compose -f "${{ github.action_path }}/docker-compose.yml" pull || echo "::warning:: Failed to pull images. They will be built from source."
-        fi
-
     - name: Run E2E Suite
       id: e2e
       shell: bash
@@ -101,7 +90,7 @@ runs:
         IMAGE_PREFIX: ${{ inputs.image_prefix }}
       run: |
         # Run the devnet
-        "${{ github.action_path }}/cli/target/debug/zeckit" --project-dir "${{ github.action_path }}" up \
+        "${{ github.action_path }}/cli/target/debug/zeckit" up \
           --backend "${{ inputs.backend }}" \
           --timeout "${{ inputs.startup_timeout_minutes }}" \
           --action-mode
@@ -110,7 +99,7 @@ runs:
         set +e
         
         # Run the tests
-        "${{ github.action_path }}/cli/target/debug/zeckit" --project-dir "${{ github.action_path }}" test \
+        "${{ github.action_path }}/cli/target/debug/zeckit" test \
           --amount "${{ inputs.send_amount }}" \
           --memo "${{ inputs.send_memo }}" \
           --action-mode
@@ -121,12 +110,12 @@ runs:
         set -e
         
         # Extract metadata from logs if exists
-        if [ -f logs/run-summary.json ]; then
-           echo "unified_address=$(jq -r .faucet_address logs/run-summary.json)" >> $GITHUB_OUTPUT
-           echo "shield_txid=$(jq -r .shield_txid logs/run-summary.json)" >> $GITHUB_OUTPUT
-           echo "send_txid=$(jq -r .send_txid logs/run-summary.json)" >> $GITHUB_OUTPUT
-           echo "final_orchard_balance=$(jq -r .final_balance logs/run-summary.json)" >> $GITHUB_OUTPUT
-           echo "test_result=$(jq -r .test_result logs/run-summary.json)" >> $GITHUB_OUTPUT
+        if [ -f ~/.zeckit/logs/run-summary.json ]; then
+           echo "unified_address=$(jq -r .faucet_address ~/.zeckit/logs/run-summary.json)" >> $GITHUB_OUTPUT
+           echo "shield_txid=$(jq -r .shield_txid ~/.zeckit/logs/run-summary.json)" >> $GITHUB_OUTPUT
+           echo "send_txid=$(jq -r .send_txid ~/.zeckit/logs/run-summary.json)" >> $GITHUB_OUTPUT
+           echo "final_orchard_balance=$(jq -r .final_balance ~/.zeckit/logs/run-summary.json)" >> $GITHUB_OUTPUT
+           echo "test_result=$(jq -r .test_result ~/.zeckit/logs/run-summary.json)" >> $GITHUB_OUTPUT
         else
            echo "test_result=fail" >> $GITHUB_OUTPUT
         fi
@@ -139,7 +128,7 @@ runs:
       shell: bash
       run: |
         echo "Collecting container logs..."
-        cd "${{ github.action_path }}"
+        cd ~/.zeckit
         mkdir -p logs
         docker ps -a > logs/containers.log 2>&1 || true
         docker network ls > logs/networks.log 2>&1 || true

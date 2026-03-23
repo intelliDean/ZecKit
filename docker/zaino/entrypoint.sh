@@ -47,12 +47,23 @@ if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
     exit 1
 fi
 
-# Get block count
-BLOCK_COUNT=$(curl -s \
-    -X POST \
-    -H "Content-Type: application/json" \
-    -d '{"jsonrpc":"2.0","id":"info","method":"getblockcount","params":[]}' \
-    "http://${ZEBRA_RPC_HOST}:${ZEBRA_RPC_PORT}" | grep -o '"result":[0-9]*' | cut -d: -f2 || echo "0")
+# Get block count safely
+get_block_count() {
+    local count
+    count=$(curl -s \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d '{"jsonrpc":"2.0","id":"info","method":"getblockcount","params":[]}' \
+        "http://${ZEBRA_RPC_HOST}:${ZEBRA_RPC_PORT}" | grep -o '"result":[0-9]*' | cut -d: -f2 || true)
+    
+    if [ -z "$count" ]; then
+        echo "0"
+    else
+        echo "$count"
+    fi
+}
+
+BLOCK_COUNT=$(get_block_count)
 
 echo "Current block height: ${BLOCK_COUNT}"
 
@@ -60,11 +71,7 @@ echo "Current block height: ${BLOCK_COUNT}"
 echo " Waiting for at least 10 blocks to be mined..."
 while [ "${BLOCK_COUNT}" -lt "10" ]; do
     sleep 10
-    BLOCK_COUNT=$(curl -s \
-        -X POST \
-        -H "Content-Type: application/json" \
-        -d '{"jsonrpc":"2.0","id":"info","method":"getblockcount","params":[]}' \
-        "http://${ZEBRA_RPC_HOST}:${ZEBRA_RPC_PORT}" | grep -o '"result":[0-9]*' | cut -d: -f2 || echo "0")
+    BLOCK_COUNT=$(get_block_count)
     echo "  Current blocks: ${BLOCK_COUNT}"
 done
 
