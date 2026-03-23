@@ -244,9 +244,9 @@ async fn main() -> anyhow::Result<()> {
         // Wait before starting to avoid collision with initial sync
         sleep(Duration::from_secs(10)).await;
         
-        info!("🔄 Starting background wallet sync (every 60 seconds)");
+        info!("🔄 Starting background wallet sync (every 120 seconds)");
         
-        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        let mut interval = tokio::time::interval(Duration::from_secs(120));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         
         let mut sync_count = 0u64;
@@ -259,7 +259,7 @@ async fn main() -> anyhow::Result<()> {
             
             // Try to acquire write lock with reasonable timeout
             let lock_result = tokio::time::timeout(
-                Duration::from_secs(2),  // ← CHANGED from 100ms to 2s
+                Duration::from_secs(5),  // ← Increased from 2s to 5s
                 sync_wallet.write()
             ).await;
             

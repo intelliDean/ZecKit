@@ -17,10 +17,10 @@ WORKDIR /build
 # Copy everything
 COPY . .
 
-# Build
+# Build in release mode
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-RUN cargo build
+RUN cargo build --release
 
 # ========================================
 # Runtime Stage
@@ -36,7 +36,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN useradd -m -u 2001 -s /bin/bash faucet
 
-COPY --from=builder /build/target/debug/zeckit-faucet /usr/local/bin/faucet
+COPY --from=builder /build/target/release/zeckit-faucet /usr/local/bin/faucet
 RUN chmod +x /usr/local/bin/faucet
 
 RUN mkdir -p /var/zingo && chown -R faucet:faucet /var/zingo

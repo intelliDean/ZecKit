@@ -79,8 +79,8 @@ impl WalletManager {
             heartwood: Some(1),
             canopy: Some(1),
             nu5: Some(1),
-            nu6: None,      // ← Changed to None
-            nu6_1: None,    // ← Changed to None
+            nu6: Some(1),   // Fixed: Activated NU6
+            nu6_1: Some(1), // Fixed: Activated NU6.1
             nu7: None,      // ← Changed to None
         };
         let chain_type = ChainType::Regtest(activation_heights);
@@ -198,13 +198,17 @@ impl WalletManager {
         match send_result {
             Ok(txids) => {
                 let txid = txids.first().to_string();
-                info!("Shielded transparent funds in txid: {}", txid);
+                info!(" ✓ Shield transaction broadcast successfully: {}", txid);
                 Ok(txid)
             },
             Err(e) if e.to_string().contains("additional change output") => {
+                 info!(" ⚠ Shield proposal failed with 'additional change output' - likely too many UTXOs or fee issues. Falling back to simple transfer...");
                  self.perform_fallback_shield_transfer(balance.transparent).await
             },
-            Err(e) => Err(FaucetError::Wallet(format!("Shield send failed: {}", e)))
+            Err(e) => {
+                tracing::error!(" ❌ Shielding failed during send: {}", e);
+                Err(FaucetError::Wallet(format!("Shield send failed: {}", e)))
+            }
         }
     }
 

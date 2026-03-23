@@ -322,9 +322,8 @@ async fn test_wallet_sync(client: &Client) -> Result<()> {
     let json: Value = resp.json().await?;
     
     if json.get("status").and_then(|v| v.as_str()) != Some("synced") {
-        return Err(crate::error::ZecKitError::HealthCheck(
-            "Wallet sync did not complete successfully".into()
-        ));
+        let err_part = json.get("error").and_then(|v| v.as_str()).unwrap_or("Wallet sync failed");
+        return Err(crate::error::ZecKitError::HealthCheck(err_part.to_string()));
     }
 
     Ok(())
@@ -356,7 +355,8 @@ async fn test_wallet_shield(client: &Client) -> Result<String> {
             .await?;
         
         if !shield_resp.status().is_success() {
-            let error_text = shield_resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let json: Value = shield_resp.json().await.unwrap_or(json!({"error": "Unknown error"}));
+            let error_text = json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown shielding error");
             return Err(crate::error::ZecKitError::HealthCheck(
                 format!("Shield API call failed: {}", error_text)
             ));
@@ -375,9 +375,9 @@ async fn test_wallet_shield(client: &Client) -> Result<String> {
                     println!("    TXID: {}...", &txid[..16.min(txid.len())]);
                 }
                 
-                // Wait for transaction to be mined
-                println!("    Waiting for transaction to confirm...");
-                sleep(Duration::from_secs(30)).await;
+                // Wait for transaction to be mined (Zebra generates every 15s, so 45s is safer)
+                println!("    Waiting for transaction to confirm (45s)...");
+                sleep(Duration::from_secs(45)).await;
                 
                 // Sync wallet to see new balance
                 println!("    Syncing wallet to update balance...");

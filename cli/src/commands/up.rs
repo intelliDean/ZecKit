@@ -593,7 +593,8 @@ async fn shield_transparent_funds() -> Result<()> {
         return Ok(());
     }
     
-    Err(ZecKitError::HealthCheck("Shield transaction failed".into()))
+    let error_msg = json.get("error").and_then(|v| v.as_str()).unwrap_or("Shield transaction failed");
+    Err(ZecKitError::HealthCheck(error_msg.to_string()))
 }
 
 async fn get_block_count(client: &Client) -> Result<u64> {
