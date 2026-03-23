@@ -17,11 +17,11 @@ enable_cookie_auth = false
 [mining]
 internal_miner = false
 
-[network.regtest_parameters.activation_heights]
+[network.testnet_parameters.activation_heights]
 NU5 = 1
 NU6 = 1
-"NU6.1" = 1
+Nu6_1 = 1
 
-[[network.regtest_parameters.lockbox_disbursements]]
+[[network.testnet_parameters.lockbox_disbursements]]
 address = "t2RnBRiqrN1nW4ecZs1Fj3WWjNdnSs4kiX8"
 amount = 0
