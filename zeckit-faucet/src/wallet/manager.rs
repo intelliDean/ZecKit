@@ -79,8 +79,8 @@ impl WalletManager {
             heartwood: Some(1),
             canopy: Some(1),
             nu5: Some(1),
-            nu6: Some(1),   // Fixed: Activated NU6
-            nu6_1: None,    // Reverted: Zebra on Regtest may not support NU6.1 override
+            nu6: None,      // Reverted: Zebra on Regtest may not support NU6 yet
+            nu6_1: None,    // Reverted: Zebra on Regtest may not support NU6.1 yet
             nu7: None,      // ← Changed to None
         };
         let chain_type = ChainType::Regtest(activation_heights);
