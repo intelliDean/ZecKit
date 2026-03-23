@@ -25,17 +25,24 @@ impl DockerCompose {
         if let Some(compose_file) = ComposeAsset::get("docker-compose.yml") {
             let mut content = String::from_utf8_lossy(&compose_file.data).to_string();
             
-            // Strip out build blocks so docker-compose doesn't look for local directories
-            let build_blocks = [
-                "    build:\n      context: ./docker/zebra\n      dockerfile: Dockerfile\n",
-                "    build:\n      context: ./docker/lightwalletd\n      dockerfile: Dockerfile\n",
-                "    build:\n      context: ./docker/zaino\n      dockerfile: Dockerfile\n      args:\n        - NO_TLS=true\n        - RUST_VERSION=1.91.1\n",
-                "    build:\n      context: ./docker/zingo\n      dockerfile: Dockerfile\n",
-                "    build:\n      context: ./zeckit-faucet\n      dockerfile: Dockerfile\n",
-            ];
-            
-            for block in build_blocks.iter() {
-                content = content.replace(block, "");
+            // CRITICAL FIX: Only strip build blocks if we are NOT in build-allowed mode (e.g. CI)
+            let allow_build = std::env::var("ZECKIT_ALLOW_BUILD").map(|v| v == "true" || v == "1").unwrap_or(false);
+
+            if !allow_build {
+                // Strip out build blocks so docker-compose doesn't look for local directories
+                let build_blocks = [
+                    "    build:\n      context: ./docker/zebra\n      dockerfile: Dockerfile\n",
+                    "    build:\n      context: ./docker/lightwalletd\n      dockerfile: Dockerfile\n",
+                    "    build:\n      context: ./docker/zaino\n      dockerfile: Dockerfile\n      args:\n        - NO_TLS=true\n        - RUST_VERSION=1.91.1\n",
+                    "    build:\n      context: ./docker/zingo\n      dockerfile: Dockerfile\n",
+                    "    build:\n      context: ./zeckit-faucet\n      dockerfile: Dockerfile\n",
+                ];
+                
+                for block in build_blocks.iter() {
+                    content = content.replace(block, "");
+                }
+            } else {
+                info!("ZECKIT_ALLOW_BUILD is set, keeping build blocks in docker-compose.yml");
             }
             
             fs::write(project_dir.join("docker-compose.yml"), content)?;

@@ -321,7 +321,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     info!("🌐 Server ready on {}", addr);
-    info!("📡 Background sync: Active (60s interval)");
+    info!("📡 Background sync: Active (120s interval)");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
