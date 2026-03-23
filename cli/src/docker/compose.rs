@@ -42,7 +42,7 @@ impl DockerCompose {
                     content = content.replace(block, "");
                 }
             } else {
-                info!("ZECKIT_ALLOW_BUILD is set, keeping build blocks in docker-compose.yml");
+                println!("ZECKIT_ALLOW_BUILD is set, keeping build blocks in docker-compose.yml");
             }
             
             fs::write(project_dir.join("docker-compose.yml"), content)?;
