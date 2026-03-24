@@ -128,6 +128,14 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, project_dir: 
 
     if action_mode {
         let final_balance = get_wallet_balance_via_api(&client).await.ok();
+        
+        // Save faucet-stats.json (required artifact for failure drills)
+        let _ = save_faucet_stats_artifact(
+            action_mode, 
+            &client,
+            project_dir.clone()
+        ).await;
+        
         let _ = save_run_summary_artifact(
             action_mode,
             faucet_address,
@@ -145,6 +153,50 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, project_dir: 
         ));
     }
 
+    Ok(())
+}
+
+async fn save_faucet_stats_artifact(
+    action_mode: bool, 
+    client: &Client,
+    project_dir_override: Option<String>,
+) -> Result<()> {
+    if !action_mode {
+        return Ok(());
+    }
+    
+    let project_dir = if let Some(dir) = project_dir_override {
+        std::path::PathBuf::from(dir)
+    } else {
+        dirs::home_dir()
+            .ok_or_else(|| crate::error::ZecKitError::Config("Could not find home directory".into()))?
+            .join(".zeckit")
+    };
+
+    let log_dir = project_dir.join("logs");
+    fs::create_dir_all(&log_dir).ok();
+
+    // Try to get faucet stats via API
+    let stats_res = client
+        .get("http://127.0.0.1:8080/stats")
+        .send()
+        .await;
+    
+    let stats_json = match stats_res {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(v) => v,
+                Err(_) => json!({"error": "Failed to parse stats response"}),
+            }
+        }
+        Ok(resp) => json!({"error": format!("Stats endpoint returned {}", resp.status())}),
+        Err(e) => json!({"error": format!("Could not reach faucet stats: {}", e)}),
+    };
+    
+    let stats_path = log_dir.join("faucet-stats.json");
+    fs::write(&stats_path, serde_json::to_string_pretty(&stats_json)?).ok();
+    println!("✓ Saved {:?}", stats_path);
+    
     Ok(())
 }
 

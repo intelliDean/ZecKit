@@ -15,12 +15,12 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 
 # Copy only manifest to cache dependencies
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf src
-
-# Now copy actual source
 COPY . .
-RUN touch src/main.rs && cargo build --release
+
+# Build in release mode
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+RUN cargo build --release
 
 # ========================================
 # Runtime Stage
