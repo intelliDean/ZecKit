@@ -89,6 +89,7 @@ runs:
       env:
         IMAGE_PREFIX: ${{ inputs.image_prefix }}
         ZECKIT_ALLOW_BUILD: "true"
+        ZECKIT_SRC_PATH: ${{ github.action_path }}
       run: |
         # Run the devnet
         "${{ github.action_path }}/cli/target/debug/zeckit" up \

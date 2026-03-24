@@ -43,6 +43,12 @@ impl DockerCompose {
                 }
             } else {
                 println!("ZECKIT_ALLOW_BUILD is set, keeping build blocks in docker-compose.yml");
+                
+                if let Ok(src_path) = std::env::var("ZECKIT_SRC_PATH") {
+                   println!("ZECKIT_SRC_PATH is set to {}, remapping build contexts", src_path);
+                   content = content.replace("./docker/", &format!("{}/docker/", src_path));
+                   content = content.replace("./zeckit-faucet", &format!("{}/zeckit-faucet", src_path));
+                }
             }
             
             fs::write(project_dir.join("docker-compose.yml"), content)?;
