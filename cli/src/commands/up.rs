@@ -162,13 +162,15 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
             }
             
             let elapsed = start.elapsed().as_secs();
-            if elapsed < 180 {
-                let progress = (elapsed as f64 / 180.0 * 100.0).min(99.0) as u32;
+            let limit = timeout * 60;
+            if elapsed < limit {
+                let progress = (elapsed as f64 / limit as f64 * 100.0).min(99.0) as u32;
                 print!("\r[2/3] Starting {}... {}%", backend_name, progress);
                 io::stdout().flush().ok();
                 sleep(Duration::from_secs(1)).await;
             } else {
-                return Err(ZecKitError::ServiceNotReady(format!("{} not ready", backend_name)));
+                let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
+                return Err(ZecKitError::ServiceNotReady(format!("{} not ready after {} minutes", backend_name, timeout)));
             }
         }
         println!();
@@ -187,13 +189,15 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
         }
         
         let elapsed = start.elapsed().as_secs();
-        if elapsed < 120 {
-            let progress = (elapsed as f64 / 120.0 * 100.0).min(99.0) as u32;
+        let limit = timeout * 60;
+        if elapsed < limit {
+            let progress = (elapsed as f64 / limit as f64 * 100.0).min(99.0) as u32;
             print!("\r[3/3] Starting Faucet... {}%", progress);
             io::stdout().flush().ok();
             sleep(Duration::from_secs(1)).await;
         } else {
-            return Err(ZecKitError::ServiceNotReady("Faucet not ready".into()));
+            let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
+            return Err(ZecKitError::ServiceNotReady(format!("Faucet not ready after {} minutes", timeout)));
         }
     }
     println!();

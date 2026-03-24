@@ -65,11 +65,17 @@ impl DockerCompose {
     }
 
     pub fn up(&self, services: &[&str]) -> Result<()> {
+        let allow_build = std::env::var("ZECKIT_ALLOW_BUILD").map(|v| v == "true" || v == "1").unwrap_or(false);
         let mut cmd = Command::new("docker");
         cmd.arg("compose")
             .arg("up")
-            .arg("-d")
-            .current_dir(&self.project_dir);
+            .arg("-d");
+        
+        if allow_build {
+            cmd.arg("--build");
+        }
+        
+        cmd.current_dir(&self.project_dir);
 
         for service in services {
             cmd.arg(service);
@@ -124,9 +130,10 @@ impl DockerCompose {
 
     /// Start services with profile, building only if needed
     pub fn up_with_profile(&self, profile: &str, _force_build: bool) -> Result<()> {
+        let allow_build = std::env::var("ZECKIT_ALLOW_BUILD").map(|v| v == "true" || v == "1").unwrap_or(false);
         let needs_pull = !self.images_exist(profile);
         
-        if needs_pull {
+        if needs_pull && !allow_build {
             println!("Pulling Docker images for profile '{}'...", profile);
             println!("(This may take a few minutes)");
             println!();
@@ -150,14 +157,19 @@ impl DockerCompose {
         }
 
         // Start services with live output
-        println!("Starting containers...");
-        Command::new("docker")
-            .arg("compose")
+        let allow_build = std::env::var("ZECKIT_ALLOW_BUILD").map(|v| v == "true" || v == "1").unwrap_or(false);
+        let mut cmd = Command::new("docker");
+        cmd.arg("compose")
             .arg("--profile")
             .arg(profile)
             .arg("up")
-            .arg("-d")
-            .current_dir(&self.project_dir)
+            .arg("-d");
+        
+        if allow_build {
+            cmd.arg("--build");
+        }
+        
+        cmd.current_dir(&self.project_dir)
             .status()?
             .success()
             .then_some(())
