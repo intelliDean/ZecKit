@@ -33,6 +33,10 @@ inputs:
     description: 'Custom prefix for docker images (if using local fork)'
     required: false
     default: 'ghcr.io/intellidean/zeckit'
+  allow_build:
+    description: "Whether to allow building images from source if missing (default: false for speed)"
+    required: false
+    default: 'false'
 
 outputs:
   unified_address:
@@ -88,7 +92,7 @@ runs:
       shell: bash
       env:
         IMAGE_PREFIX: ${{ inputs.image_prefix }}
-        ZECKIT_ALLOW_BUILD: "false"
+        ZECKIT_ALLOW_BUILD: "${{ inputs.allow_build }}"
         ZECKIT_SRC_PATH: ${{ github.action_path }}
       run: |
         # Run the devnet

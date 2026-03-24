@@ -625,4 +625,7 @@ Dual-licensed under MIT OR Apache-2.0
 ---
 
 **Last Updated:** March 8, 2026
-**Status:** M3 Complete — CI passing (7/7 tests) ✅
+**Status:** M3 Complete — CI optimized & passing (7/7 tests) ✅
+- **Optimization:** Image pulling is now the default (2-4 min setup).
+- **Manual Build:** Use `allow_build: true` in the action to force a source build.
+
