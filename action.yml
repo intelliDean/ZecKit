@@ -88,7 +88,7 @@ runs:
       shell: bash
       env:
         IMAGE_PREFIX: ${{ inputs.image_prefix }}
-        ZECKIT_ALLOW_BUILD: "true"
+        ZECKIT_ALLOW_BUILD: "false"
         ZECKIT_SRC_PATH: ${{ github.action_path }}
       run: |
         # Run the devnet
