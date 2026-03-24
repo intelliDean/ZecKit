@@ -32,7 +32,7 @@ inputs:
   image_prefix:
     description: 'Custom prefix for docker images (if using local fork)'
     required: false
-    default: 'ghcr.io/zecdev/zeckit'
+    default: 'ghcr.io/intellidean/zeckit'
 
 outputs:
   unified_address:
