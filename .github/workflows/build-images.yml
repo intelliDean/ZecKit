@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - m3-implementation
+      - feat/standalone-cli
   workflow_dispatch:
 
 permissions:
