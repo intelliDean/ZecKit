@@ -41,6 +41,18 @@ enum Commands {
         /// Run in action mode (generate artifacts)
         #[arg(long)]
         action_mode: bool,
+
+        /// Custom transparent address for Zebra mining rewards (overrides embedded default)
+        #[arg(long)]
+        miner_address: Option<String>,
+
+        /// Address to automatically fund after the devnet is healthy
+        #[arg(long)]
+        fund_address: Option<String>,
+
+        /// Amount in ZEC to send to --fund-address (default: 10.0)
+        #[arg(long, default_value = "10.0")]
+        fund_amount: f64,
     },
     
     /// Stop the ZecKit devnet
@@ -90,8 +102,8 @@ async fn main() {
     let cli = Cli::parse();
     
     let result = match cli.command {
-        Commands::Up { backend, fresh, timeout, action_mode } => {
-            commands::up::execute(backend, fresh, timeout, action_mode, cli.project_dir).await
+        Commands::Up { backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount } => {
+            commands::up::execute(backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount, cli.project_dir).await
         }
         Commands::Down { purge } => {
             commands::down::execute(purge, cli.project_dir).await

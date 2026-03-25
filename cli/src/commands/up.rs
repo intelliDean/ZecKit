@@ -14,7 +14,7 @@ const MAX_WAIT_SECONDS: u64 = 60000;
 // Known transparent address from default seed "abandon abandon abandon..."
 const DEFAULT_FAUCET_ADDRESS: &str = "tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd";
 
-pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bool, project_dir: Option<String>) -> Result<()> {
+pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bool, miner_address: Option<String>, fund_address: Option<String>, fund_amount: f64, project_dir: Option<String>) -> Result<()> {
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!("{}", "  ZecKit - Starting Devnet".cyan().bold());
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
@@ -47,10 +47,13 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     // ========================================================================
     println!("📝 Configuring Zebra mining address...");
     
-    match update_zebra_config_file(DEFAULT_FAUCET_ADDRESS, project_dir.clone()) {
+    // Resolve miner address: use provided override or fall back to default
+    let resolved_miner_address = miner_address.as_deref().unwrap_or(DEFAULT_FAUCET_ADDRESS);
+
+    match update_zebra_config_file(resolved_miner_address, project_dir.clone()) {
         Ok(_) => {
             println!("✓ Updated docker/configs/zebra.toml");
-            println!("  Mining to: {}", DEFAULT_FAUCET_ADDRESS);
+            println!("  Mining to: {}", resolved_miner_address);
         }
         Err(e) => {
             println!("{}", format!("Warning: Could not update zebra.toml: {}", e).yellow());
@@ -383,7 +386,29 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     if action_mode {
         let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
     }
-    
+
+    // ========================================================================
+    // STEP 16: Auto-fund destination address (if provided)
+    // ========================================================================
+    if let Some(ref dest_addr) = fund_address {
+        println!();
+        println!("💸 Auto-funding destination address...");
+        println!("   Recipient: {}", dest_addr);
+        println!("   Amount:    {} ZEC", fund_amount);
+
+        match fund_destination_address(dest_addr, fund_amount).await {
+            Ok(txid) => {
+                println!("✓ Funded destination: {} ZEC → {}", fund_amount, dest_addr);
+                println!("  TXID: {}", txid);
+            }
+            Err(e) => {
+                // Non-fatal: print warning but continue
+                println!("{}", format!("⚠ Warning: Auto-fund failed: {}", e).yellow());
+                println!("{}", "  The devnet is still running; fund manually via the faucet.".yellow());
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -770,4 +795,47 @@ fn print_connection_info(backend: &str) {
     println!("  • View fixtures: cat fixtures/unified-addresses.json");
     println!("  • Request funds: curl -X POST http://127.0.0.1:8080/request -d '{{\"address\":\"...\"}}'");
     println!();
+}
+
+// ============================================================================
+// Auto-fund helper: send ZEC to a destination address via the faucet /send API
+// ============================================================================
+async fn fund_destination_address(address: &str, amount: f64) -> Result<String> {
+    let client = Client::new();
+
+    // Sync wallet first so spendable balance is up to date
+    let _ = client
+        .post("http://127.0.0.1:8080/sync")
+        .timeout(Duration::from_secs(60))
+        .send()
+        .await;
+
+    sleep(Duration::from_secs(5)).await;
+
+    let resp = client
+        .post("http://127.0.0.1:8080/send")
+        .json(&serde_json::json!({
+            "address": address,
+            "amount": amount,
+            "memo": "ZecKit auto-fund"
+        }))
+        .timeout(Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|e| ZecKitError::HealthCheck(format!("Fund request failed: {}", e)))?;
+
+    if !resp.status().is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        return Err(ZecKitError::HealthCheck(format!("Faucet /send error: {}", body)));
+    }
+
+    let json: serde_json::Value = resp.json().await?;
+
+    if json.get("status").and_then(|v| v.as_str()) == Some("sent") {
+        let txid = json.get("txid").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        return Ok(txid);
+    }
+
+    let err = json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+    Err(ZecKitError::HealthCheck(format!("Fund failed: {}", err)))
 }

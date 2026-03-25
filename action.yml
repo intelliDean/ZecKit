@@ -37,6 +37,22 @@ inputs:
     description: "Whether to allow building images from source if missing (default: false for speed)"
     required: false
     default: 'false'
+  miner_address:
+    description: 'Custom transparent address to receive Zebra mining rewards (uses embedded default if omitted)'
+    required: false
+    default: ''
+  fund_address:
+    description: 'Address to automatically fund after the devnet is healthy (skipped if omitted)'
+    required: false
+    default: ''
+  fund_amount:
+    description: 'Amount in ZEC to send to fund_address (default: 10.0)'
+    required: false
+    default: '10.0'
+  only_setup:
+    description: 'If true, skip the ZecKit smoke tests and only start the devnet'
+    required: false
+    default: 'false'
 
 outputs:
   unified_address:
@@ -95,11 +111,29 @@ runs:
         ZECKIT_ALLOW_BUILD: "${{ inputs.allow_build }}"
         ZECKIT_SRC_PATH: ${{ github.action_path }}
       run: |
+        # Build optional flags from action inputs
+        ZECKIT_UP_EXTRA_ARGS=()
+        if [ -n "${{ inputs.miner_address }}" ]; then
+          ZECKIT_UP_EXTRA_ARGS+=(--miner-address "${{ inputs.miner_address }}")
+        fi
+        if [ -n "${{ inputs.fund_address }}" ]; then
+          ZECKIT_UP_EXTRA_ARGS+=(--fund-address "${{ inputs.fund_address }}")
+        fi
+
         # Run the devnet
         "${{ github.action_path }}/cli/target/debug/zeckit" up \
           --backend "${{ inputs.backend }}" \
           --timeout "${{ inputs.startup_timeout_minutes }}" \
-          --action-mode
+          --action-mode \
+          --fund-amount "${{ inputs.fund_amount }}" \
+          "${ZECKIT_UP_EXTRA_ARGS[@]}"
+        
+        # Skip test phase if only_setup is true
+        if [ "${{ inputs.only_setup }}" = "true" ]; then
+          echo "only_setup=true: skipping smoke tests"
+          echo "test_result=skip" >> $GITHUB_OUTPUT
+          exit 0
+        fi
         
         # Disable exit-on-error temporarily so we can parse outputs
         set +e
