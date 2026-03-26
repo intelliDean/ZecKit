@@ -1,6 +1,6 @@
 # ZecKit Devnet Startup Guide
 
-This guide describes how to manage your local ZecKit Devnet.
+This guide describes how to manage your local ZecKit Devnet. This environment is pre-configured for **NU6** and **NU6.1** compatibility on regtest.
 
 ## Quick Start
 To start the devnet with the Zaino backend (recommended):
