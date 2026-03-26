@@ -9,7 +9,7 @@ use tower_http::cors::CorsLayer;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tokio::time::{sleep, Duration};
-use tonic::transport::Channel;
+
 use zcash_protocol::value::Zatoshis;
 
 mod config;
@@ -28,59 +28,56 @@ pub struct AppState {
     pub start_time: chrono::DateTime<chrono::Utc>,
 }
 
-/// Health check for Zaino - uses lightweight gRPC ping instead of full sync
+/// Health check for Zaino - polls TCP connectivity to avoid tonic/axum version conflicts
 async fn wait_for_zaino(uri: &str, max_attempts: u32) -> anyhow::Result<u64> {
-    use zcash_client_backend::proto::service::compact_tx_streamer_client::CompactTxStreamerClient;
-    use zcash_client_backend::proto::service::ChainSpec;
-    
+    use tokio::net::TcpStream;
+
+    // Parse host:port from the URI (e.g. "http://zaino:9067" → "zaino:9067")
+    let addr = uri
+        .trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .to_string();
+
     info!(" Waiting for Zaino at {} to be ready...", uri);
-    
+
     for attempt in 1..=max_attempts {
-        let ping_result = tokio::time::timeout(
+        let addr_clone = addr.clone();
+        let connect_result = tokio::time::timeout(
             Duration::from_secs(5),
-            async {
-                let channel = Channel::from_shared(uri.to_string())?
-                    .connect_timeout(Duration::from_secs(3))
-                    .connect()
-                    .await?;
-                
-                let mut client = CompactTxStreamerClient::new(channel);
-                let response = client.get_latest_block(ChainSpec {}).await?;
-                let block = response.into_inner();
-                
-                Ok::<u64, anyhow::Error>(block.height)
-            }
-        ).await;
-        
-        match ping_result {
-            Ok(Ok(height)) => {
-                info!(" Zaino ready at block height {} (took {}s)", height, attempt * 5);
-                return Ok(height);
+            TcpStream::connect(&addr_clone),
+        )
+        .await;
+
+        match connect_result {
+            Ok(Ok(_stream)) => {
+                info!(" Zaino is reachable (took {}s)", attempt * 5);
+                // Return placeholder height; real chain height is obtained during wallet sync
+                return Ok(0);
             }
             Ok(Err(e)) => {
-                if attempt % 6 == 0 {  // Log every 30 seconds
-                    info!(" Still waiting for Zaino... ({}s elapsed)", attempt * 5);
-                    tracing::debug!("Zaino error: {}", e);
+                if attempt % 6 == 0 {
+                    info!(" Still waiting for Zaino... ({}s elapsed): {}", attempt * 5, e);
                 } else {
                     tracing::debug!("Zaino not ready (attempt {}): {}", attempt, e);
                 }
             }
             Err(_) => {
                 if attempt % 6 == 0 {
-                    info!(" Still waiting for Zaino... ({}s elapsed) - connection timeout", attempt * 5);
+                    info!(" Still waiting for Zaino... ({}s elapsed) - timeout", attempt * 5);
                 } else {
                     tracing::debug!("Zaino connection timeout (attempt {})", attempt);
                 }
             }
         }
-        
+
         if attempt < max_attempts {
             sleep(Duration::from_secs(5)).await;
         }
     }
-    
+
     Err(anyhow::anyhow!("Zaino not ready after {} seconds", max_attempts * 5))
 }
+
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
