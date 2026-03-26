@@ -10,9 +10,11 @@
 
 ## Project Status
 
-**Current Milestone:** M3 Complete - GitHub Action & CI
+**Current Milestone:** M3 Complete — NU6/NU6.1 Upgraded ✅
 
-### What Works Now
+- **Network Support:** Full compatibility with **NU6** and **NU6.1** Zcash network upgrades.
+- **Wallet Engine:** Upgraded to **Zingolib v3.0.0**.
+- **Devnet Features:** 2-node Zebra cluster via GitHub Action or local CLI.
 
 **M1 - Foundation**
 
@@ -624,8 +626,7 @@ Dual-licensed under MIT OR Apache-2.0
 
 ---
 
-**Last Updated:** March 8, 2026
-**Status:** M3 Complete — CI optimized & passing (7/7 tests) ✅
-- **Optimization:** Image pulling is now the default (2-4 min setup).
-- **Manual Build:** Use `allow_build: true` in the action to force a source build.
-
+**Last Updated:** March 26, 2026
+**Status:** **NU6/NU6.1 Upgrade Complete** — CI passing (7/7 tests) ✅
+- **Protocol:** Upgraded to Zingolib v3.0.0 for official NU6 support.
+- **Performance:** Optimized image pulling (2-4 min CI setup).
