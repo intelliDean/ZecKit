@@ -6,6 +6,7 @@ on:
       - main
       - m3-implementation
       - feat/standalone-cli
+      - feat/nu6-upgrade
   workflow_dispatch:
 
 permissions:

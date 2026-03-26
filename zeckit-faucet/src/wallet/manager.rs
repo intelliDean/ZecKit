@@ -8,7 +8,7 @@ use zingolib::{
     wallet::{LightWallet, WalletBase},
 };
 use axum::http::Uri;
-use zcash_primitives::consensus::BlockHeight;
+use zcash_protocol::consensus::BlockHeight;
 use zebra_chain::parameters::testnet::ConfiguredActivationHeights;
 use zcash_primitives::memo::MemoBytes;
 use zcash_client_backend::zip321::{TransactionRequest, Payment};
@@ -79,12 +79,13 @@ impl WalletManager {
             heartwood: Some(1),
             canopy: Some(1),
             nu5: Some(1),
-            nu6: None,      // Reverted: Zebra on Regtest may not support NU6 yet
-            nu6_1: None,    // Reverted: Zebra on Regtest may not support NU6.1 yet
-            nu7: None,      // ← Changed to None
+            nu6: Some(1),
+            nu6_1: Some(1),
+            nu7: None,
         };
         let chain_type = ChainType::Regtest(activation_heights);
         
+        // In zingolib v3.0.0, ZingoConfig::build uses ChainType
         let config = ZingoConfig::build(chain_type)
             .set_lightwalletd_uri(uri)
             .set_wallet_dir(data_dir.clone())

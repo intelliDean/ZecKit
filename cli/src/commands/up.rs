@@ -797,45 +797,24 @@ fn print_connection_info(backend: &str) {
     println!();
 }
 
-// ============================================================================
-// Auto-fund helper: send ZEC to a destination address via the faucet /send API
-// ============================================================================
-async fn fund_destination_address(address: &str, amount: f64) -> Result<String> {
+async fn fund_destination_address(addr: &str, amount: f64) -> Result<String> {
     let client = Client::new();
-
-    // Sync wallet first so spendable balance is up to date
-    let _ = client
-        .post("http://127.0.0.1:8080/sync")
-        .timeout(Duration::from_secs(60))
-        .send()
-        .await;
-
-    sleep(Duration::from_secs(5)).await;
-
     let resp = client
-        .post("http://127.0.0.1:8080/send")
-        .json(&serde_json::json!({
-            "address": address,
-            "amount": amount,
-            "memo": "ZecKit auto-fund"
+        .post("http://127.0.0.1:8080/request")
+        .json(&json!({
+            "address": addr,
+            "amount": amount
         }))
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(30))
         .send()
         .await
-        .map_err(|e| ZecKitError::HealthCheck(format!("Fund request failed: {}", e)))?;
-
-    if !resp.status().is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        return Err(ZecKitError::HealthCheck(format!("Faucet /send error: {}", body)));
-    }
+        .map_err(|e| ZecKitError::HealthCheck(format!("Auto-fund request failed: {}", e)))?;
 
     let json: serde_json::Value = resp.json().await?;
-
-    if json.get("status").and_then(|v| v.as_str()) == Some("sent") {
-        let txid = json.get("txid").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        return Ok(txid);
+    if let Some(txid) = json.get("txid").and_then(|v| v.as_str()) {
+        Ok(txid.to_string())
+    } else {
+        let err = json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+        Err(ZecKitError::HealthCheck(err.to_string()))
     }
-
-    let err = json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown error");
-    Err(ZecKitError::HealthCheck(format!("Fund failed: {}", err)))
 }
