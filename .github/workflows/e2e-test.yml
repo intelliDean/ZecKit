@@ -86,6 +86,10 @@ jobs:
           echo "Pulling pre-built images from $IMAGE_PREFIX..."
           docker compose pull --profile zaino || true
           
+          # Force build from source if images are stale/missing
+          export ZECKIT_ALLOW_BUILD=true
+          export ZECKIT_SRC_PATH=${{ github.workspace }}
+
           # No --fresh flag, but volumes are already cleared above
           ./cli/target/release/zeckit up --backend zaino &
           PID=$!
