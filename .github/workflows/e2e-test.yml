@@ -83,8 +83,8 @@ jobs:
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           export IMAGE_PREFIX="ghcr.io/$REPO_LOWER"
           
-          echo "Pulling pre-built images from $IMAGE_PREFIX..."
-          docker compose pull --profile zaino || true
+          # The ZecKit CLI handle pulls and builds automatically.
+          # Manual 'docker compose pull' is redundant and can fail on older V2 plugins.
           
           # Force build from source if images are stale/missing
           export ZECKIT_ALLOW_BUILD=true

@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - service: zebra-miner
+          - service: zebrad
             context: ./docker/zebra
           - service: zebra-sync
             context: ./docker/zebra

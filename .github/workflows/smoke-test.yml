@@ -43,7 +43,7 @@ jobs:
           export IMAGE_PREFIX="ghcr.io/${REPO,,}"
           
           echo "Pulling pre-built Zebra images..."
-          docker compose pull zebra-miner zebra-sync || true
+          docker compose pull zebrad zebra-sync || true
           
           echo "Starting Zebra regtest node..."
           docker compose up -d
@@ -86,7 +86,7 @@ jobs:
         run: |
           echo "Collecting container logs..."
           mkdir -p logs
-          docker compose logs zebra > logs/zebra.log 2>&1 || true
+          docker compose logs zebra-miner > logs/zebra.log 2>&1 || true
           docker ps -a > logs/containers.log 2>&1 || true
           docker network ls > logs/networks.log 2>&1 || true
       
