@@ -24,6 +24,7 @@ jobs:
         uses: {repo}@{branch}
         with:
           backend: '{backend}'
+          image_prefix: 'ghcr.io/intellidean/zeckit'
           startup_timeout_minutes: '15'
 "#;
 
@@ -36,12 +37,16 @@ fn detect_github_repo() -> String {
         .output();
         
     if let Ok(out) = output {
-        let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let mut url = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if url.contains("github.com") {
             // Handle both HTTPS and SSH URLs
-            // HTTPS: https://github.com/owner/repo.git
+            // HTTPS: https://github.com/owner/repo.git OR https://token@github.com/owner/repo.git
             // SSH: git@github.com:owner/repo.git
             let parts: Vec<&str> = if url.contains("https://") {
+                // If there's a token, it will be in the form https://token@github.com/owner/repo.git
+                if let Some(pos) = url.find('@') {
+                    url = format!("https://{}", &url[pos+1..]);
+                }
                 url.trim_start_matches("https://github.com/").trim_end_matches(".git").split('/').collect()
             } else {
                 url.trim_start_matches("git@github.com:").trim_end_matches(".git").split('/').collect()
@@ -107,8 +112,18 @@ pub async fn execute(
     }
 
     // 4. Generate content
-    let repo = detect_github_repo();
-    let branch = detect_git_branch();
+    // Detection logic:
+    // If we're in the ZecKit toolkit repo (action.yml exists), use detected local repo/branch (Contributor mode)
+    // If we're in an external app project (no action.yml), default to intelliDean/ZecKit@main (User mode)
+    let base_dir = std::env::current_dir().map_err(|e| ZecKitError::Io(e))?;
+    let is_toolkit_repo = base_dir.join("action.yml").exists();
+
+    let (repo, branch) = if is_toolkit_repo {
+        (detect_github_repo(), detect_git_branch())
+    } else {
+        ("intelliDean/ZecKit".to_string(), "main".to_string())
+    };
+
     let content = WORKFLOW_TEMPLATE
         .replace("{backend}", &backend)
         .replace("{repo}", &repo)
