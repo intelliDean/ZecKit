@@ -79,21 +79,59 @@ runs:
       run: |
         echo "Starting ZecKit E2E Action..."
         echo "Backend: ${{ inputs.backend }}"
-        
-    - name: Cache ZecKit CLI
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ github.action_path }}/cli/target
-          ~/.cargo/registry
-          ~/.cargo/git
-        key: zeckit-cli-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          zeckit-cli-${{ runner.os }}-
+        echo "Action Path: ${{ github.action_path }}"
+        echo "Action Ref: ${{ github.action_ref }}"
 
-    - name: Build ZecKit CLI
+    - name: Detect platform
+      id: platform
       shell: bash
       run: |
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          echo "binary=zeckit-linux-x86_64" >> $GITHUB_OUTPUT
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          echo "binary=zeckit-macos-x86_64" >> $GITHUB_OUTPUT
+        else
+          echo "Unsupported OS: $RUNNER_OS"
+          exit 1
+        fi
+
+    - name: Try to download prebuilt ZecKit CLI
+      id: download
+      continue-on-error: true
+      shell: bash
+      run: |
+        VERSION="${{ github.action_ref }}"
+        BINARY="${{ steps.platform.outputs.binary }}"
+        BASE="https://github.com/zecdev/ZecKit/releases"
+
+        mkdir -p "${{ github.action_path }}/bin"
+        
+        # Determine version for download
+        if [[ -z "$VERSION" ]] || [[ "$VERSION" == "main" ]] || [[ "$VERSION" == "m3-implementation" ]]; then
+          DL_URL="$BASE/latest/download/$BINARY"
+        else
+          # Clean version tag (strip 'refs/tags/' if present)
+          TAG="${VERSION#refs/tags/}"
+          DL_URL="$BASE/download/$TAG/$BINARY"
+        fi
+
+        echo "Attempting to download $DL_URL..."
+        curl -L -f -o "${{ github.action_path }}/bin/zeckit" "$DL_URL"
+        
+        if [ $? -eq 0 ]; then
+          chmod +x "${{ github.action_path }}/bin/zeckit"
+          echo "✓ Successfully downloaded prebuilt binary"
+          echo "downloaded=true" >> $GITHUB_OUTPUT
+        else
+          echo "⚠️ Prebuilt binary not found for version $VERSION. Will fall back to building from source."
+          echo "downloaded=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build ZecKit CLI (Fallback)
+      if: steps.download.outputs.downloaded != 'true'
+      shell: bash
+      run: |
+        echo "Building ZecKit CLI from source..."
         cd ${{ github.action_path }}/cli
         cargo build
       
@@ -110,6 +148,15 @@ runs:
         ZECKIT_ALLOW_BUILD: "${{ inputs.allow_build }}"
         ZECKIT_SRC_PATH: ${{ github.action_path }}
       run: |
+        # Use downloaded binary or fall back to built one
+        if [[ "${{ steps.download.outputs.downloaded }}" == "true" ]]; then
+           CLI="${{ github.action_path }}/bin/zeckit"
+        else
+           CLI="${{ github.action_path }}/cli/target/debug/zeckit"
+        fi
+        
+        echo "Using ZecKit CLI at: $CLI"
+
         # Build optional flags from action inputs
         ZECKIT_UP_EXTRA_ARGS=()
         if [ -n "${{ inputs.miner_address }}" ]; then
@@ -120,7 +167,7 @@ runs:
         fi
 
         # Run the devnet
-        "${{ github.action_path }}/cli/target/debug/zeckit" up \
+        "$CLI" up \
           --backend "${{ inputs.backend }}" \
           --timeout "${{ inputs.startup_timeout_minutes }}" \
           --action-mode \
@@ -139,7 +186,7 @@ runs:
         set +e
         
         # Run the tests
-        "${{ github.action_path }}/cli/target/debug/zeckit" test \
+        "$CLI" test \
           --amount "${{ inputs.send_amount }}" \
           --memo "${{ inputs.send_memo }}" \
           --action-mode

@@ -1,0 +1,160 @@
+# ============================================================
+# ZecKit – CI Self-Test for the Published Action
+# ============================================================
+# Exercises the root action.yml and the reusable golden-e2e
+# workflow against both backends on every push/PR to main.
+#
+# This is also the workflow that prospective callers can use as
+# a copy-paste reference for their own repos.
+# ============================================================
+
+name: Action CI Self-Test
+
+on:
+  push:
+    branches:
+      - main
+      - m3-implementation
+      - 'release/**'
+  pull_request:
+    branches:
+      - main
+      - m3-implementation
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: 'Backend to test (zaino | lwd | both)'
+        required: false
+        default: 'both'
+      upload_artifacts:
+        description: 'Artifact upload policy (always | on-failure | never)'
+        required: false
+        default: 'on-failure'
+
+permissions:
+  contents: read
+  packages: read
+
+# ============================================================
+# STRATEGY MATRIX
+# ============================================================
+jobs:
+
+  # ----------------------------------------------------------
+  # Determine which backends to run based on trigger
+  # ----------------------------------------------------------
+  set-matrix:
+    name: Set test matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Build backend matrix
+        id: matrix
+        shell: bash
+        run: |
+          requested="${{ github.event.inputs.backend }}"
+
+          if [[ "$requested" == "zaino" ]]; then
+            echo 'matrix={"backend":["zaino"]}' >> "$GITHUB_OUTPUT"
+          elif [[ "$requested" == "lwd" ]]; then
+            echo 'matrix={"backend":["lwd"]}' >> "$GITHUB_OUTPUT"
+          else
+            # Default: both backends
+            echo 'matrix={"backend":["zaino","lwd"]}' >> "$GITHUB_OUTPUT"
+          fi
+
+  # ----------------------------------------------------------
+  # Run the golden E2E flow via the COMPOSITE ACTION directly
+  # ----------------------------------------------------------
+  composite-action-test:
+    name: "Composite Action – ${{ matrix.backend }}"
+    needs: set-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
+
+    steps:
+      - name: Checkout ZecKit
+        uses: actions/checkout@v4
+
+      - name: Run ZecKit E2E composite action (self-test)
+        id: e2e
+        uses: ./
+        with:
+          backend:                 ${{ matrix.backend }}
+          startup_timeout_minutes: '10'
+          block_wait_seconds:      '75'
+          send_amount:             '0.05'
+          send_memo:               'CI self-test – ${{ matrix.backend }}'
+          upload_artifacts:        ${{ github.event.inputs.upload_artifacts || 'on-failure' }}
+          ghcr_token:              ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Print action outputs
+        if: always()
+        shell: bash
+        run: |
+          echo "unified_address       : ${{ steps.e2e.outputs.unified_address }}"
+          echo "transparent_address   : ${{ steps.e2e.outputs.transparent_address }}"
+          echo "shield_txid           : ${{ steps.e2e.outputs.shield_txid }}"
+          echo "send_txid             : ${{ steps.e2e.outputs.send_txid }}"
+          echo "final_orchard_balance : ${{ steps.e2e.outputs.final_orchard_balance }} ZEC"
+          echo "block_height          : ${{ steps.e2e.outputs.block_height }}"
+          echo "test_result           : ${{ steps.e2e.outputs.test_result }}"
+
+      - name: Assert test_result is 'pass'
+        shell: bash
+        run: |
+          result="${{ steps.e2e.outputs.test_result }}"
+          if [[ "$result" != "pass" ]]; then
+            echo "::error::Golden E2E returned test_result='$result' (expected 'pass')."
+            exit 1
+          fi
+          echo "✓ test_result=pass"
+
+  # ----------------------------------------------------------
+  # Run the same flow via the REUSABLE WORKFLOW
+  # (validates workflow_call path end-to-end)
+  # ----------------------------------------------------------
+  reusable-workflow-test:
+    name: "Reusable Workflow – zaino"
+    needs: set-matrix
+    uses: ./.github/workflows/golden-e2e.yml
+    with:
+      backend:                 'zaino'
+      startup_timeout_minutes: 10
+      block_wait_seconds:      75
+      send_amount:             0.05
+      send_memo:               'Reusable workflow self-test'
+      upload_artifacts:        'on-failure'
+    secrets:
+      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ----------------------------------------------------------
+  # Gate: all matrix jobs must pass
+  # ----------------------------------------------------------
+  ci-gate:
+    name: CI Gate
+    needs:
+      - composite-action-test
+      - reusable-workflow-test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all jobs
+        shell: bash
+        run: |
+          composite="${{ needs.composite-action-test.result }}"
+          reusable="${{ needs.reusable-workflow-test.result }}"
+
+          echo "composite-action-test : $composite"
+          echo "reusable-workflow-test: $reusable"
+
+          if [[ "$composite" != "success" || "$reusable" != "success" ]]; then
+            echo "::error::One or more E2E jobs failed."
+            exit 1
+          fi
+          echo "✓ All CI jobs passed."

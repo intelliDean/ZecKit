@@ -1,0 +1,49 @@
+name: Build and Release ZecKit CLI
+
+on:
+  push:
+    branches:
+      - main
+      - m3-implementation
+  pull_request:
+    branches:
+      - main
+      - m3-implementation
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin_name: zeckit-linux-x86_64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Build CLI (release mode)
+        run: |
+          cd cli
+          cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Prepare binary + checksum
+        run: |
+          cp cli/target/${{ matrix.target }}/release/zeckit ${{ matrix.bin_name }}
+          sha256sum ${{ matrix.bin_name }} > ${{ matrix.bin_name }}.sha256
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ matrix.bin_name }}
+            ${{ matrix.bin_name }}.sha256

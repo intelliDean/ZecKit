@@ -1,4 +1,11 @@
+# syntax=docker/dockerfile:1.7
+
+########################################
+# 1️⃣ Builder Stage
+########################################
 FROM rust:1.80-bookworm as builder
+
+ARG ZEBRA_VERSION=main
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -10,26 +17,38 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-RUN git clone https://github.com/ZcashFoundation/zebra.git
+
+# Clone pinned version for reproducibility
+RUN git clone --depth 1 --branch ${ZEBRA_VERSION} \
+    https://github.com/ZcashFoundation/zebra.git
+
 WORKDIR /build/zebra
 
 # CACHE DEPENDENCIES FIRST
 ENV CARGO_HOME=/usr/local/cargo
-ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
-ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+########################################
+# 2️⃣ Dependency Cache Layer
+########################################
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/build/zebra/target \
     cargo fetch
 
-# BUILD WITH PERSISTENT CACHES
+########################################
+# 3️⃣ Build Layer (Release Mode)
+########################################
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/zebra/target \
-    cargo build --features internal-miner --bin zebrad && \
-    cp target/debug/zebrad /tmp/zebrad
+    cargo build --release \
+    --features internal-miner \
+    --bin zebrad \
+    --locked && \
+    cp target/release/zebrad /tmp/zebrad
 
-# Runtime stage
+########################################
+# 4️⃣ Runtime Stage
+########################################
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
