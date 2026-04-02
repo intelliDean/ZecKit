@@ -51,19 +51,49 @@ impl HealthChecker {
         for i in 0..self.backend_max_retries {
             pb.tick();
             
-            match self.check_backend(backend).await {
-                Ok(_) => return Ok(()),
-                Err(_) if i < self.backend_max_retries - 1 => {
-                    sleep(self.retry_delay).await;
+            // First check TCP connectivity
+            if self.check_backend_port(9067).is_ok() {
+                // Then check sync parity via faucet (if lwd)
+                if backend == "lwd" {
+                    match self.check_backend_sync_parity().await {
+                        Ok(_) => return Ok(()),
+                        Err(e) => {
+                            if i % 5 == 0 {
+                                pb.set_message(format!("Waiting for {} sync: {}", backend, e));
+                            }
+                        }
+                    }
+                } else {
+                    return Ok(());
                 }
-                Err(e) => return Err(e),
+            }
+
+            if i < self.backend_max_retries - 1 {
+                sleep(self.retry_delay).await;
             }
         }
 
-        Err(ZecKitError::ServiceNotReady(format!("{} not ready", backend)))
+        Err(ZecKitError::ServiceNotReady(format!("{} not ready or synchronized", backend)))
     }
 
-    async fn check_zebra(&self, port: u16) -> Result<()> {
+    async fn check_backend_sync_parity(&self) -> Result<()> {
+        // 1. Get Zebra Miner height
+        let zebra_height = self.get_zebra_height(8232).await?;
+        
+        // 2. Get Faucet/LWD synced height
+        let faucet_height = self.get_faucet_height().await?;
+        
+        if faucet_height < zebra_height.saturating_sub(1) {
+            return Err(ZecKitError::HealthCheck(format!(
+                "Backend lagging: Miner={} LWD={}", 
+                zebra_height, faucet_height
+            )));
+        }
+        
+        Ok(())
+    }
+
+    async fn get_zebra_height(&self, port: u16) -> Result<u64> {
         let url = format!("http://127.0.0.1:{}", port);
         let resp = self
             .client
@@ -74,16 +104,48 @@ impl HealthChecker {
                 "method": "getblockcount",
                 "params": []
             }))
-            .timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(2))
             .send()
             .await
             .map_err(|e| ZecKitError::HealthCheck(format!("RPC call to {} failed: {}", url, e)))?;
 
-        if resp.status().is_success() {
-            Ok(())
-        } else {
-            let status = resp.status();
-            Err(ZecKitError::HealthCheck(format!("Zebra on port {} returned status {}", port, status)))
+        let json: Value = resp.json().await
+            .map_err(|e| ZecKitError::HealthCheck(format!("Failed to parse Zebra response: {}", e)))?;
+        
+        json["result"].as_u64()
+            .ok_or_else(|| ZecKitError::HealthCheck("Invalid height in Zebra response".into()))
+    }
+
+    async fn get_faucet_height(&self) -> Result<u64> {
+        let resp = self
+            .client
+            .get("http://127.0.0.1:8080/health")
+            .timeout(Duration::from_secs(2))
+            .send()
+            .await
+            .map_err(|_| ZecKitError::HealthCheck("Faucet not responding".into()))?;
+
+        let json: Value = resp.json().await
+            .map_err(|_| ZecKitError::HealthCheck("Failed to parse Faucet health JSON".into()))?;
+        
+        json["synced_height"].as_u64()
+            .ok_or_else(|| ZecKitError::HealthCheck("synced_height missing in Faucet response".into()))
+    }
+
+    fn check_backend_port(&self, port: u16) -> Result<()> {
+        match TcpStream::connect_timeout(
+            &format!("127.0.0.1:{}", port).parse().unwrap(),
+            StdDuration::from_secs(1)
+        ) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(ZecKitError::HealthCheck(format!("Port {} not open", port)))
+        }
+    }
+
+    async fn check_zebra(&self, port: u16) -> Result<()> {
+        match self.get_zebra_height(port).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e)
         }
     }
 
@@ -106,30 +168,5 @@ impl HealthChecker {
         }
 
         Ok(())
-    }
-    
-    async fn check_backend(&self, backend: &str) -> Result<()> {
-        // Zaino and Lightwalletd are gRPC services on port 9067
-        // They don't respond to HTTP, so we do a TCP connection check
-        
-        let backend_name = if backend == "lwd" { "lightwalletd" } else { "zaino" };
-        
-        // Try to connect to localhost:9067 with 2 second timeout
-        match TcpStream::connect_timeout(
-            &"127.0.0.1:9067".parse().unwrap(),
-            StdDuration::from_secs(2)
-        ) {
-            Ok(_) => {
-                // For Zaino, give it extra time after port opens to initialize
-                if backend == "zaino" {
-                    sleep(Duration::from_secs(10)).await;
-                }
-                Ok(())
-            }
-            Err(_) => {
-                // Port not accepting connections yet
-                Err(ZecKitError::HealthCheck(format!("{} not ready", backend_name)))
-            }
-        }
     }
 }

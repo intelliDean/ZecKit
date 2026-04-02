@@ -107,7 +107,6 @@ runs:
       id: e2e
       shell: bash
       env:
-        IMAGE_PREFIX: ${{ inputs.image_prefix }}
         ZECKIT_ALLOW_BUILD: "${{ inputs.allow_build }}"
         ZECKIT_SRC_PATH: ${{ github.action_path }}
       run: |

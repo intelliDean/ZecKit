@@ -171,6 +171,18 @@ impl WalletManager {
         })
     }
 
+    pub async fn get_height(&self) -> Result<u32, FaucetError> {
+        let info_str = self.client.do_info().await;
+        let info_json: serde_json::Value = serde_json::from_str(&info_str)
+            .map_err(|e| FaucetError::Wallet(format!("Failed to parse info JSON: {}", e)))?;
+        
+        let height = info_json["latest_block_height"]
+            .as_u64()
+            .ok_or_else(|| FaucetError::Wallet("latest_block_height missing from info".to_string()))?;
+            
+        Ok(height as u32)
+    }
+
     pub async fn shield_to_orchard(&mut self) -> Result<String, FaucetError> {
         info!("Shielding transparent funds to Orchard...");
         

@@ -13,15 +13,21 @@ RUN apt-get update && apt-get install -y \
     clang \
     && rm -rf /var/lib/apt/lists/*
 
+# Zaino build arguments - can be overridden for different forks/branches
+# Default points to the fork with the critical regtest-insecure-grpc fix
+ARG ZAINO_REPO=https://github.com/Timi16/zaino.git
+ARG ZAINO_BRANCH=fix/regtest-insecure-grpc
+
 WORKDIR /build
 
-# Clone YOUR fork with the fix
-RUN git clone https://github.com/Timi16/zaino.git
+# Clone Zaino (Note: ZecKit requires the fix/regtest-insecure-grpc branch 
+# for insecure gRPC support in devnet environments)
+RUN git clone ${ZAINO_REPO} zaino
 
 WORKDIR /build/zaino
 
-# Checkout your fix branch
-RUN git checkout fix/regtest-insecure-grpc
+# Checkout specified branch
+RUN git checkout ${ZAINO_BRANCH}
 
 # CACHE CARGO DEPENDENCIES FIRST (this is the magic)
 ENV CARGO_HOME=/usr/local/cargo

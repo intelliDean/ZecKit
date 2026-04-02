@@ -9,7 +9,6 @@ use std::fs;
 use std::io::{self, Write};
 use tokio::time::{sleep, Duration};
 
-const MAX_WAIT_SECONDS: u64 = 60000;
 
 // Known transparent address from default seed "abandon abandon abandon..."
 const DEFAULT_FAUCET_ADDRESS: &str = "tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd";
@@ -235,7 +234,6 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     // STEP 7: Mine initial blocks for maturity
     // ========================================================================
     println!();
-    
     let current_blocks = get_block_count(&Client::new()).await.unwrap_or(0);
     let target_blocks = 101;
     
@@ -246,12 +244,22 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     }
     
     // ========================================================================
-    // STEP 8: Ensure blocks are fully synced
+    // STEP 8: Wait for LWD to sync those blocks
     // ========================================================================
-    wait_for_mined_blocks(&pb, target_blocks).await?;
+    println!();
+    println!("Waiting for Backend (LWD) to sync these blocks...");
+    
+    // We already have a checker instance from Step 3
+    if let Err(e) = checker.wait_for_backend("lwd", &pb).await {
+        println!("{}", format!("Warning: Sync verification incomplete: {}", e).yellow());
+        println!("  Continuing with best-effort wait...");
+        sleep(Duration::from_secs(15)).await;
+    } else {
+        println!("✓ Backend fully synchronized at target height");
+    }
     
     // ========================================================================
-    // STEP 9: Wait for blocks to propagate
+    // STEP 9: Wait for blocks to propagate and indexer to catch up
     // ========================================================================
     println!();
     println!("Waiting for blocks to propagate and indexer to catch up...");
@@ -496,37 +504,6 @@ fn update_zebra_config_file(address: &str, project_dir_override: Option<String>)
 // ============================================================================
 // Helper Functions (keep all your existing functions below)
 // ============================================================================
-
-async fn wait_for_mined_blocks(_pb: &ProgressBar, min_blocks: u64) -> Result<()> {
-    let client = Client::new();
-    let start = std::time::Instant::now();
-    
-    println!("Mining initial blocks...");
-    
-    loop {
-        match get_block_count(&client).await {
-            Ok(height) if height >= min_blocks => {
-                println!("✓ Mined {} blocks", height);
-                println!();
-                return Ok(());
-            }
-            Ok(height) => {
-                let progress = (height as f64 / min_blocks as f64 * 100.0) as u64;
-                print!("\r  Block {} / {} ({}%)", height, min_blocks, progress);
-                io::stdout().flush().ok();
-            }
-            Err(_) => {}
-        }
-        
-        if start.elapsed().as_secs() > MAX_WAIT_SECONDS {
-            return Err(ZecKitError::ServiceNotReady(
-                "Internal miner timeout - blocks not reaching maturity".into()
-            ));
-        }
-        
-        sleep(Duration::from_secs(2)).await;
-    }
-}
 
 async fn mine_additional_blocks(count: u32) -> Result<()> {
     let client = Client::new();

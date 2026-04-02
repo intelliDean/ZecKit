@@ -21,11 +21,57 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🚀 Start ZecKit Devnet
-        uses: intelliDean/ZecKit@m3-implementation
+        uses: {repo}@{branch}
         with:
           backend: '{backend}'
           startup_timeout_minutes: '15'
 "#;
+
+fn detect_github_repo() -> String {
+    use std::process::Command;
+    
+    // Try to get the remote URL from git
+    let output = Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .output();
+        
+    if let Ok(out) = output {
+        let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if url.contains("github.com") {
+            // Handle both HTTPS and SSH URLs
+            // HTTPS: https://github.com/owner/repo.git
+            // SSH: git@github.com:owner/repo.git
+            let parts: Vec<&str> = if url.contains("https://") {
+                url.trim_start_matches("https://github.com/").trim_end_matches(".git").split('/').collect()
+            } else {
+                url.trim_start_matches("git@github.com:").trim_end_matches(".git").split('/').collect()
+            };
+            
+            if parts.len() >= 2 {
+                return format!("{}/{}", parts[0], parts[1]);
+            }
+        }
+    }
+    
+    // Fallback to original repo if detection fails
+    "intelliDean/ZecKit".to_string()
+}
+
+fn detect_git_branch() -> String {
+    use std::process::Command;
+    let output = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output();
+        
+    if let Ok(out) = output {
+        let branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !branch.is_empty() && branch != "HEAD" {
+            return branch;
+        }
+    }
+    
+    "main".to_string()
+}
 
 pub async fn execute(
     backend: String,
@@ -61,7 +107,12 @@ pub async fn execute(
     }
 
     // 4. Generate content
-    let content = WORKFLOW_TEMPLATE.replace("{backend}", &backend);
+    let repo = detect_github_repo();
+    let branch = detect_git_branch();
+    let content = WORKFLOW_TEMPLATE
+        .replace("{backend}", &backend)
+        .replace("{repo}", &repo)
+        .replace("{branch}", &branch);
 
     // 5. Write file
     fs::write(&target_path, content).map_err(|e| ZecKitError::Io(e))?;

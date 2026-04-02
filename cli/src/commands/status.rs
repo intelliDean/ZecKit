@@ -29,21 +29,32 @@ pub async fn execute(project_dir: Option<String>) -> Result<()> {
     // Check service health
     let client = Client::new();
     
-    // Zebra
-    print_service_status(&client, "Zebra", "http://127.0.0.1:8232").await;
+    // Zebra Miner
+    print_zebra_status(&client, "Zebra Miner", "http://127.0.0.1:8232").await;
+
+    // Zebra Sync
+    print_zebra_status(&client, "Zebra Sync ", "http://127.0.0.1:18232").await;
     
     // Faucet
-    print_service_status(&client, "Faucet", "http://127.0.0.1:8080/stats").await;
+    print_faucet_status(&client, "Faucet", "http://127.0.0.1:8080/stats").await;
     
     println!();
     Ok(())
 }
 
-async fn print_service_status(client: &Client, name: &str, url: &str) {
-    match client.get(url).send().await {
+async fn print_zebra_status(client: &Client, name: &str, url: &str) {
+    let body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": "status",
+        "method": "getblockcount",
+        "params": []
+    });
+
+    match client.post(url).json(&body).send().await {
         Ok(resp) if resp.status().is_success() => {
             if let Ok(json) = resp.json::<Value>().await {
-                println!("  {} {} - {}", "✓".green(), name.bold(), format_json(&json));
+                let height = json["result"].as_u64().unwrap_or(0);
+                println!("  {} {} - Height: {}", "✓".green(), name.bold(), height);
             } else {
                 println!("  {} {} - {}", "✓".green(), name.bold(), "OK");
             }
@@ -54,12 +65,18 @@ async fn print_service_status(client: &Client, name: &str, url: &str) {
     }
 }
 
-fn format_json(json: &Value) -> String {
-    if let Some(height) = json.get("zebra_height") {
-        format!("Height: {}", height)
-    } else if let Some(balance) = json.get("current_balance") {
-        format!("Balance: {} ZEC", balance)
-    } else {
-        "Running".to_string()
+async fn print_faucet_status(client: &Client, name: &str, url: &str) {
+    match client.get(url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            if let Ok(json) = resp.json::<Value>().await {
+                let balance = json["current_balance"].as_f64().unwrap_or(0.0);
+                println!("  {} {} - Balance: {:.2} ZEC", "✓".green(), name.bold(), balance);
+            } else {
+                println!("  {} {} - {}", "✓".green(), name.bold(), "OK");
+            }
+        }
+        _ => {
+            println!("  {} {} - {}", "✗".red(), name.bold(), "Not responding");
+        }
     }
 }

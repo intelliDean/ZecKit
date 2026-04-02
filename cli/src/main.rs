@@ -27,7 +27,7 @@ enum Commands {
     /// Start the ZecKit devnet
     Up {
         /// Light-client backend: lwd (lightwalletd) or zaino
-        #[arg(short, long, default_value = "none")]
+        #[arg(short, long, default_value = "lwd")]
         backend: String,
         
         /// Force fresh start (remove volumes)
