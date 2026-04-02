@@ -64,6 +64,8 @@ The fastest way to use ZecKit if you just want to verify your own application's 
 2.  **Commit**: Push the generated `.github/workflows/zeckit-e2e.yml` to your repo.
 3.  **Done**: GitHub will now spin up a full Zcash devnet on every PR and verify your logic.
 
+For a detailed step-by-step tutorial, see the **[Setup Guide](USAGE.md)**.
+
 ---
 
 ### Option B: Local Standalone Development
@@ -118,6 +120,7 @@ cd ..
 
 # Run test suite
 ./cli/target/release/zeckit test
+```
 
 ### How to Start Local Devnet (Quick Reference)
 
@@ -127,7 +130,6 @@ For detailed instructions and service health checks, see the [Startup Guide](sta
 2.  **Launch the Network**: `./cli/target/release/zeckit up --backend zaino`
 3.  **Check Health**: `curl http://localhost:8080/stats`
 4.  **Stop**: `./cli/target/release/zeckit down`
-```
 
 ### Verify It's Working
 
@@ -626,7 +628,7 @@ Dual-licensed under MIT OR Apache-2.0
 
 ---
 
-**Last Updated:** March 26, 2026
+**Last Updated:** April 2, 2026
 **Status:** **NU6/NU6.1 Upgrade Complete** — CI passing (7/7 tests) ✅
 - **Protocol:** Upgraded to Zingolib v3.0.0 for official NU6 support.
 - **Performance:** Optimized image pulling (2-4 min CI setup).
