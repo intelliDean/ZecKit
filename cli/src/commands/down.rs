@@ -8,7 +8,7 @@ pub async fn execute(purge: bool, project_dir: Option<String>) -> Result<()> {
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!();
     
-    let compose = DockerCompose::new(project_dir)?;
+    let compose = DockerCompose::new(project_dir, None)?;
     
     println!("{} Stopping services...", "🛑".yellow());
     compose.down(purge)?;

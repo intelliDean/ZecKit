@@ -125,6 +125,7 @@ runs:
           --timeout "${{ inputs.startup_timeout_minutes }}" \
           --action-mode \
           --fund-amount "${{ inputs.fund_amount }}" \
+          --image-prefix "${{ inputs.image_prefix }}" \
           "${ZECKIT_UP_EXTRA_ARGS[@]}"
         
         # Skip test phase if only_setup is true

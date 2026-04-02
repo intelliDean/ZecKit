@@ -6,10 +6,11 @@ use crate::assets::{ConfigAssets, ComposeAsset};
 #[derive(Clone)]
 pub struct DockerCompose {
     project_dir: String,
+    image_prefix: Option<String>,
 }
 
 impl DockerCompose {
-    pub fn new(project_dir_override: Option<String>) -> Result<Self> {
+    pub fn new(project_dir_override: Option<String>, image_prefix: Option<String>) -> Result<Self> {
         let project_dir = if let Some(dir) = project_dir_override {
             std::path::PathBuf::from(dir)
         } else {
@@ -67,14 +68,26 @@ impl DockerCompose {
 
         Ok(Self {
             project_dir: project_dir.to_string_lossy().to_string(),
+            image_prefix,
         })
+    }
+
+    fn create_command(&self) -> Command {
+        let mut cmd = Command::new("docker");
+        cmd.arg("compose");
+        cmd.current_dir(&self.project_dir);
+        
+        if let Some(ref prefix) = self.image_prefix {
+            cmd.env("IMAGE_PREFIX", prefix);
+        }
+        
+        cmd
     }
 
     pub fn up(&self, services: &[&str]) -> Result<()> {
         let allow_build = std::env::var("ZECKIT_ALLOW_BUILD").map(|v| v == "true" || v == "1").unwrap_or(false);
-        let mut cmd = Command::new("docker");
-        cmd.arg("compose")
-            .arg("up")
+        let mut cmd = self.create_command();
+        cmd.arg("up")
             .arg("-d");
         
         if allow_build {
@@ -100,13 +113,11 @@ impl DockerCompose {
     /// Check if Docker images exist for a profile
     pub fn images_exist(&self, profile: &str) -> bool {
         // Get list of images that would be used by this profile
-        let output = Command::new("docker")
-            .arg("compose")
+        let output = self.create_command()
             .arg("--profile")
             .arg(profile)
             .arg("config")
             .arg("--images")
-            .current_dir(&self.project_dir)
             .output();
         
         match output {
@@ -145,12 +156,10 @@ impl DockerCompose {
             println!();
             
             // Pull with LIVE output instead of silent
-            let pull_status = Command::new("docker")
-                .arg("compose")
+            let pull_status = self.create_command()
                 .arg("--profile")
                 .arg(profile)
                 .arg("pull")
-                .current_dir(&self.project_dir)
                 .status()  // This shows output in real-time!
                 .map_err(|e| ZecKitError::Docker(format!("Failed to start pull: {}", e)))?;
 
@@ -164,9 +173,8 @@ impl DockerCompose {
 
         // Start services with live output
         let allow_build = std::env::var("ZECKIT_ALLOW_BUILD").map(|v| v == "true" || v == "1").unwrap_or(false);
-        let mut cmd = Command::new("docker");
-        cmd.arg("compose")
-            .arg("--profile")
+        let mut cmd = self.create_command();
+        cmd.arg("--profile")
             .arg(profile)
             .arg("up")
             .arg("-d");
@@ -175,8 +183,7 @@ impl DockerCompose {
             cmd.arg("--build");
         }
         
-        cmd.current_dir(&self.project_dir)
-            .status()?
+        cmd.status()?
             .success()
             .then_some(())
             .ok_or_else(|| ZecKitError::Docker("Failed to start containers".into()))?;
@@ -185,14 +192,12 @@ impl DockerCompose {
     }
 
     pub fn down(&self, volumes: bool) -> Result<()> {
-        let mut cmd = Command::new("docker");
-        cmd.arg("compose")
-            .arg("--profile")
+        let mut cmd = self.create_command();
+        cmd.arg("--profile")
             .arg("zaino")
             .arg("--profile")
             .arg("lwd")
-            .arg("down")
-            .current_dir(&self.project_dir);
+            .arg("down");
 
         if volumes {
             cmd.arg("-v");
@@ -210,12 +215,10 @@ impl DockerCompose {
     }
 
     pub fn ps(&self) -> Result<Vec<String>> {
-        let output = Command::new("docker")
-            .arg("compose")
+        let output = self.create_command()
             .arg("ps")
             .arg("--format")
             .arg("table")
-            .current_dir(&self.project_dir)
             .output()?;
 
         if !output.status.success() {
@@ -235,13 +238,11 @@ impl DockerCompose {
 
     #[allow(dead_code)]
     pub fn logs(&self, service: &str, tail: usize) -> Result<Vec<String>> {
-        let output = Command::new("docker")
-            .arg("compose")
+        let output = self.create_command()
             .arg("logs")
             .arg("--tail")
             .arg(tail.to_string())
             .arg(service)
-            .current_dir(&self.project_dir)
             .output()?;
 
         if !output.status.success() {
@@ -257,12 +258,10 @@ impl DockerCompose {
 
     #[allow(dead_code)]
     pub fn exec(&self, service: &str, command: &[&str]) -> Result<String> {
-        let mut cmd = Command::new("docker");
-        cmd.arg("compose")
-            .arg("exec")
+        let mut cmd = self.create_command();
+        cmd.arg("exec")
             .arg("-T") // Non-interactive
-            .arg(service)
-            .current_dir(&self.project_dir);
+            .arg(service);
 
         for arg in command {
             cmd.arg(arg);
@@ -280,11 +279,9 @@ impl DockerCompose {
 
     #[allow(dead_code)]
     pub fn is_running(&self) -> bool {
-        Command::new("docker")
-            .arg("compose")
+        self.create_command()
             .arg("ps")
             .arg("-q")
-            .current_dir(&self.project_dir)
             .output()
             .map(|output| !output.stdout.is_empty())
             .unwrap_or(false)

@@ -53,6 +53,10 @@ enum Commands {
         /// Amount in ZEC to send to --fund-address (default: 10.0)
         #[arg(long, default_value = "10.0")]
         fund_amount: f64,
+
+        /// Custom Docker image prefix (e.g. ghcr.io/user/repo)
+        #[arg(long)]
+        image_prefix: Option<String>,
     },
     
     /// Stop the ZecKit devnet
@@ -102,8 +106,8 @@ async fn main() {
     let cli = Cli::parse();
     
     let result = match cli.command {
-        Commands::Up { backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount } => {
-            commands::up::execute(backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount, cli.project_dir).await
+        Commands::Up { backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount, image_prefix } => {
+            commands::up::execute(backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount, cli.project_dir, image_prefix).await
         }
         Commands::Down { purge } => {
             commands::down::execute(purge, cli.project_dir).await

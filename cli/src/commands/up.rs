@@ -13,13 +13,13 @@ use tokio::time::{sleep, Duration};
 // Known transparent address from default seed "abandon abandon abandon..."
 const DEFAULT_FAUCET_ADDRESS: &str = "tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd";
 
-pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bool, miner_address: Option<String>, fund_address: Option<String>, fund_amount: f64, project_dir: Option<String>) -> Result<()> {
+pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bool, miner_address: Option<String>, fund_address: Option<String>, fund_amount: f64, project_dir: Option<String>, image_prefix: Option<String>) -> Result<()> {
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!("{}", "  ZecKit - Starting Devnet".cyan().bold());
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!();
     
-    let compose = DockerCompose::new(project_dir.clone())?;
+    let compose = DockerCompose::new(project_dir.clone(), image_prefix)?;
     
     if fresh {
         println!("{}", "🧹 Cleaning up old data (fresh start)...".yellow());
