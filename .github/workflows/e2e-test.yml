@@ -14,7 +14,10 @@ on:
 jobs:
   e2e-tests:
     name: ZecKit E2E Test Suite
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     
     timeout-minutes: 120
     

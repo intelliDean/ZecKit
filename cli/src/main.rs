@@ -82,6 +82,10 @@ enum Commands {
         /// Run in action mode (generate artifacts)
         #[arg(long)]
         action_mode: bool,
+
+        /// Only run granular health checks (Docker network, Faucet API, Zebra RPC) and exit before transactions
+        #[arg(long)]
+        check: bool,
     },
 
     /// Initialize a GitHub Actions workflow for this project
@@ -115,8 +119,8 @@ async fn main() {
         Commands::Status => {
             commands::status::execute(cli.project_dir).await
         }
-        Commands::Test { amount, memo, action_mode } => {
-            commands::test::execute(amount, memo, action_mode, cli.project_dir).await
+        Commands::Test { amount, memo, action_mode, check } => {
+            commands::test::execute(amount, memo, action_mode, check, cli.project_dir).await
         }
         Commands::Init { backend, force, output } => {
             commands::init::execute(backend, force, output, cli.project_dir).await

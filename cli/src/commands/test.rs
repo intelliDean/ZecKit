@@ -6,7 +6,7 @@ use tokio::time::{sleep, Duration};
 use std::fs;
 use chrono;
 
-pub async fn execute(amount: f64, memo: String, action_mode: bool, project_dir: Option<String>) -> Result<()> {
+pub async fn execute(amount: f64, memo: String, action_mode: bool, check_only: bool, project_dir: Option<String>) -> Result<()> {
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!("{}", "  ZecKit - Running Smoke Tests".cyan().bold());
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
@@ -79,6 +79,18 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, project_dir: 
             println!("{} {}", "FAIL".red(), e);
             failed += 1;
         }
+    }
+
+    if check_only {
+        println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
+        println!("  Health Check Summary: {} passed, {} failed", passed, failed);
+        println!();
+        if failed > 0 {
+            return Err(crate::error::ZecKitError::HealthCheck(
+                format!("{} health check(s) failed", failed)
+            ));
+        }
+        return Ok(());
     }
 
     // Test 4: Wallet Sync (with retries for backend indexing)

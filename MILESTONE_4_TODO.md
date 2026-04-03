@@ -9,9 +9,9 @@ This roadmap tracks the technical debt, optimizations, and improvements identifi
 - [x] **Automated Version Bumping**: Implement a tool or workflow to periodically check and update the pinned versions of `zingolib` and Zebra to keep ZecKit current with the Zcash protocol.
 
 ## 🧪 Testing & Validation
-- [ ] **Granular Health Checks**: Add a `--check` flag to the ZecKit CLI to validate the environment, including Docker health and network connectivity, before running tests.
-- [ ] **Unit Testing Suite**: Increase test coverage for the internal logic of the CLI (Rust) beyond the existing E2E smoke tests.
-- [ ] **Platform Parity Tests**: Expand CI to run E2E tests on multiple architectures and OS versions to ensure binary compatibility.
+- [x] **Granular Health Checks**: Add a `--check` flag to the ZecKit CLI to validate the environment, including Docker health and network connectivity, before running tests.
+- [x] **Unit Testing Suite**: Increase test coverage for the internal logic of the CLI (Rust) beyond the existing E2E smoke tests.
+- [x] **Platform Parity Tests**: Expand CI to run E2E tests on multiple architectures and OS versions to ensure binary compatibility.
 
 ## 📝 Documentation & UX
 - [ ] **Troubleshooting Guide**: Add a section to `USAGE.md` specifically for ARM64/Mac users explaining the source-build fallback.

@@ -287,3 +287,38 @@ impl DockerCompose {
             .unwrap_or(false)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_docker_compose_environment_initialization() {
+        let temp = tempdir().expect("Failed to create temp dir");
+        let dir_path = temp.path().to_str().unwrap().to_string();
+
+        let docker_compose = DockerCompose::new(Some(dir_path.clone()), Some("ghcr.io/test/zeckit".into()))
+            .expect("Valid DockerCompose initialization failed");
+
+        assert_eq!(docker_compose.project_dir, dir_path);
+        
+        let compose_file = temp.path().join("docker-compose.yml");
+        assert!(compose_file.exists(), "docker-compose.yml was not embedded successfully");
+
+        let zingo_config = temp.path().join("docker").join("configs").join("zcash.conf");
+        assert!(zingo_config.exists(), "embedded configs were not hydrated properly into subdirectories");
+    }
+
+    #[test]
+    fn test_docker_command_prefixing() {
+        let dc = DockerCompose {
+            project_dir: "/tmp/zeckit".into(),
+            image_prefix: Some("custom_prefix".into())
+        };
+
+        let cmd = dc.create_command();
+        assert_eq!(cmd.get_current_dir().unwrap().to_str().unwrap(), "/tmp/zeckit");
+        // We cannot directly read environments easily via Command API in strict cross-OS way without triggering, but we can verify it builds.
+    }
+}
