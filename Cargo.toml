@@ -7,7 +7,5 @@ resolver = "2"
 
 [profile.release]
 opt-level = 3
-
-[profile.release.package.zeckit-faucet]
 lto = true
 codegen-units = 1

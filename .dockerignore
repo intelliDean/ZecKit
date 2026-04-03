@@ -1,0 +1,14 @@
+target/
+.git/
+.github/
+.idea/
+.vscode/
+fixtures/
+docs/
+specs/
+docker/
+README.md
+USAGE.md
+CONTRIBUTING.md
+**/*.log
+**/*.rs.bk
