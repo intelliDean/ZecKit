@@ -1,10 +1,15 @@
 [package]
 name = "zeckit"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Dapps over Apps"]
 description = "ZecKit CLI - Developer toolkit for Zcash on Zebra"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/intellidean/ZecKit"
+homepage = "https://github.com/intellidean/ZecKit"
+readme = "Readme.md"
+keywords = ["zcash", "zebra", "regtest", "faucet", "devnet"]
+categories = ["development-tools", "cryptography::cryptocurrencies"]
 
 [[bin]]
 name = "zeckit"

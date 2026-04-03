@@ -60,7 +60,7 @@ impl DockerCompose {
         fs::create_dir_all(&configs_dir)?;
         
         for file in ConfigAssets::iter() {
-            if let Some(embedded_file) = ConfigAssets::get(&file) {
+            if let Some(embedded_file) = ConfigAssets::get(file.as_ref()) {
                 let target = configs_dir.join(file.as_ref());
                 fs::write(&target, embedded_file.data.as_ref())?;
             }

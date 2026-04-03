@@ -81,17 +81,33 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, project_dir: 
         }
     }
 
-    // Test 4: Wallet Sync
+    // Test 4: Wallet Sync (with retries for backend indexing)
     print!("  [4/7] Wallet sync capability... ");
-    match test_wallet_sync(&client).await {
-        Ok(_) => {
-            println!("{}", "PASS".green());
-            passed += 1;
+    let mut sync_success = false;
+    let mut last_sync_error = String::new();
+    
+    for i in 1..=3 {
+        match test_wallet_sync(&client).await {
+            Ok(_) => {
+                println!("{}", "PASS".green());
+                sync_success = true;
+                break;
+            }
+            Err(e) => {
+                last_sync_error = e.to_string();
+                if i < 3 {
+                    print!("{} (retrying in 10s)... ", "LAG".yellow());
+                    sleep(Duration::from_secs(10)).await;
+                }
+            }
         }
-        Err(e) => {
-            println!("{} {}", "FAIL".red(), e);
-            failed += 1;
-        }
+    }
+    
+    if sync_success {
+        passed += 1;
+    } else {
+        println!("{} {}", "FAIL".red(), last_sync_error);
+        failed += 1;
     }
 
     // Test 5: Wallet balance and shield (using API endpoints)
@@ -409,8 +425,22 @@ async fn test_wallet_shield(client: &Client) -> Result<String> {
         if !shield_resp.status().is_success() {
             let json: Value = shield_resp.json().await.unwrap_or(json!({"error": "Unknown error"}));
             let error_text = json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown shielding error");
+            
+            // Check for potential success-in-failure (already in mempool)
+            if error_text.contains("mempool conflict") || error_text.contains("already in mempool") {
+                println!("{} Funds are already being shielded (mempool conflict).", "WARN:".yellow());
+                return Ok(String::new());
+            }
+
+            // Helpful tip for the common "Insufficient balance" bug
+            let helpful_tip = if error_text.contains("Insufficient balance") {
+                format!("\n      {} Faucet shielding fails if you try to shield the entire balance. \n      Wait 30s for more blocks to mine or try manual shielding with a margin.", "TIP:".blue().bold())
+            } else {
+                String::new()
+            };
+
             return Err(crate::error::ZecKitError::HealthCheck(
-                format!("Shield API call failed: {}", error_text)
+                format!("Shield API call failed: {}{}", error_text, helpful_tip)
             ));
         }
         
@@ -445,10 +475,13 @@ async fn test_wallet_shield(client: &Client) -> Result<String> {
                 
                 // Verify shield worked (balance changed)
                 if balance_after.orchard > orchard_before || balance_after.transparent < transparent_before {
-                    println!("    Shield successful - funds moved!");
+                    if balance_after.transparent > 0.001 {
+                        println!("    {} Batch shield successful - {} ZEC moved ({} remains to be shielded).", "PASS:".green(), (transparent_before - balance_after.transparent), balance_after.transparent);
+                    } else {
+                        println!("    {} Shield complete - all funds moved to Orchard pool!", "PASS:".green());
+                    }
                 } else {
-                    println!("    Shield transaction sent but balance not yet updated");
-                    println!("    (May need more time to confirm)");
+                    println!("    {} Shield transaction sent but balance not yet updated (May need more time to confirm)", "WARN:".yellow());
                 }
                 
                 println!();

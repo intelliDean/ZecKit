@@ -1,0 +1,11 @@
+network = "Regtest"
+backend = "fetch"  # ← THIS IS THE KEY - tells Zaino to use JSON-RPC mode
+
+[grpc_settings]
+listen_address = "0.0.0.0:9067"  # Where Zaino's gRPC server listens (for clients connecting TO Zaino)
+
+[validator_settings]
+validator_jsonrpc_listen_address = "127.0.0.1:8232"  # ← Changed from grpc to jsonrpc
+
+[storage.database]
+path = "/var/zaino"  # Changed from data_dir

@@ -1,0 +1,229 @@
+version: '3.8'
+
+services:
+  # ========================================
+  # ZEBRA MINER NODE (Source of blocks)
+  # ========================================
+  zebra-miner:
+    image: ${IMAGE_PREFIX:-zeckit}/zebrad:${TAG:-latest}
+    ports:
+      - "8232:8232"
+      - "8233:8233"
+    volumes:
+      - ./docker/configs/zebra.toml:/etc/zebrad/zebrad.toml:ro
+      - zebra-miner-data:/var/zebra
+    environment:
+      - NETWORK=Regtest
+      - RUST_LOG=info
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"getblockcount\",\"params\":[],\"id\":\"health\"}' http://127.0.0.1:8232 || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  # ========================================
+  # ZEBRA SYNC NODE (Peers with miner)
+  # ========================================
+  zebra-sync:
+    image: ${IMAGE_PREFIX:-zeckit}/zebra-sync:${TAG:-latest}
+    ports:
+      - "18232:8232"
+      - "18233:8233"
+    volumes:
+      - ./docker/configs/zebra-sync.toml:/etc/zebrad/zebrad.toml:ro
+      - zebra-sync-data:/var/zebra
+    environment:
+      - NETWORK=Regtest
+      - RUST_LOG=info
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    depends_on:
+      zebra-miner:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"getblockcount\",\"params\":[],\"id\":\"health\"}' http://127.0.0.1:18232 || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  # ========================================
+  # LIGHTWALLETD (Profile: lwd)
+  # ========================================
+  lightwalletd:
+    image: ${IMAGE_PREFIX:-zeckit}/lightwalletd:${TAG:-latest}
+    ports:
+      - "9067:9067"
+    depends_on:
+      zebra-miner:
+        condition: service_started
+    environment:
+      - ZEBRA_RPC_HOST=zebra-miner
+      - ZEBRA_RPC_PORT=8232
+      - LWD_GRPC_BIND=0.0.0.0:9067
+    volumes:
+      - lightwalletd-data:/var/lightwalletd
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    profiles:
+      - lwd
+    healthcheck:
+      test: ["CMD", "/usr/bin/nc", "-z", "127.0.0.1", "9067"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  # ========================================
+  # ZAINO (Profile: zaino)
+  # ========================================
+  zaino:
+    image: ${IMAGE_PREFIX:-zeckit}/zaino:${TAG:-latest}
+    build:
+      context: ./docker/zaino
+      dockerfile: Dockerfile
+    ports:
+      - "9067:9067"
+    depends_on:
+      zebra-miner:
+        condition: service_started
+    environment:
+      - ZEBRA_RPC_HOST=zebra-miner
+      - ZEBRA_RPC_PORT=8232
+      - ZAINO_GRPC_LISTEN=0.0.0.0:9067
+    volumes:
+      - zaino-data:/var/zaino
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    profiles:
+      - zaino
+    user: "0:0"
+    healthcheck:
+      test: ["CMD", "/usr/bin/nc", "-z", "127.0.0.1", "9067"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  # ========================================
+  # ZINGO WALLET (Profile: lwd)
+  # ========================================
+  zingo-wallet-lwd:
+    image: ${IMAGE_PREFIX:-zeckit}/zingo:${TAG:-latest}
+    environment:
+      - LIGHTWALLETD_URI=http://lightwalletd:9067
+    volumes:
+      - zingo-data:/var/zingo
+    depends_on:
+      lightwalletd:
+        condition: service_started
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    profiles:
+      - lwd
+
+  # ========================================
+  # ZINGO WALLET (Profile: zaino)
+  # ========================================
+  zingo-wallet-zaino:
+    image: ${IMAGE_PREFIX:-zeckit}/zingo:${TAG:-latest}
+    environment:
+      - LIGHTWALLETD_URI=http://zaino:9067
+    volumes:
+      - zingo-data:/var/zingo
+    depends_on:
+      zaino:
+        condition: service_started
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    profiles:
+      - zaino
+
+  # ========================================
+  #  FAUCET SERVICE - LWD Profile
+  # ========================================
+  faucet-lwd:
+    image: ${IMAGE_PREFIX:-zeckit}/zeckit-faucet:${TAG:-latest}
+    ports:
+      - "8080:8080"
+    volumes:
+      - faucet-data:/var/zingo
+    environment:
+      - LIGHTWALLETD_URI=http://lightwalletd:9067
+      - ZEBRA_RPC_URL=http://zebra-miner:8232
+      - ZINGO_DATA_DIR=/var/zingo
+      - FAUCET_AMOUNT_MIN=0.01
+      - FAUCET_AMOUNT_MAX=100.0
+      - FAUCET_AMOUNT_DEFAULT=10.0
+      - RUST_LOG=info
+    depends_on:
+      zebra-miner:
+        condition: service_started
+      lightwalletd:
+        condition: service_started
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    profiles:
+      - lwd
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s http://127.0.0.1:8080/health || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  # ========================================
+  #  FAUCET SERVICE - Zaino Profile
+  # ========================================
+  faucet-zaino:
+    image: ${IMAGE_PREFIX:-zeckit}/zeckit-faucet:${TAG:-latest}
+    ports:
+      - "8080:8080"
+    volumes:
+      - faucet-data:/var/zingo
+    environment:
+      - LIGHTWALLETD_URI=http://zaino:9067
+      - ZEBRA_RPC_URL=http://zebra-miner:8232
+      - ZINGO_DATA_DIR=/var/zingo
+      - FAUCET_AMOUNT_MIN=0.01
+      - FAUCET_AMOUNT_MAX=100.0
+      - FAUCET_AMOUNT_DEFAULT=10.0
+      - RUST_LOG=info
+    depends_on:
+      zebra-miner:
+        condition: service_started
+      zaino:
+        condition: service_started
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+    profiles:
+      - zaino
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s http://127.0.0.1:8080/health || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+networks:
+  zeckit-network:
+    driver: bridge
+
+volumes:
+  zebra-miner-data:
+  zebra-sync-data:
+  lightwalletd-data:
+  zaino-data:
+  zingo-data:
+  faucet-data:

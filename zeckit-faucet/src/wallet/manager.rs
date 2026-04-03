@@ -227,16 +227,28 @@ impl WalletManager {
 
     async fn perform_fallback_shield_transfer(&mut self, utxo_total: Zatoshis) -> Result<String, FaucetError> {
         info!("Fallback: Shielding failed (change output error). Attempting manual transfer...");
-        let fee = Zatoshis::from_u64(10_000).unwrap(); // Use 0.0001 ZEC fee
+        
+        // Fee for large consolidation (0.01 ZEC is safe for ~500 inputs)
+        let fee = Zatoshis::from_u64(1_000_000).unwrap(); 
         
         if utxo_total <= fee {
             return Err(FaucetError::Wallet("Insufficient funds for fallback shielding".to_string()));
         }
         
-        let amount_to_send = (utxo_total - fee).unwrap();
-        let recipient = self.get_unified_address().await?;
+        let mut amount_to_shield_zat = (utxo_total - fee).unwrap();
         
-        self.send_from_transparent(&recipient, amount_to_send.into_u64() as f64 / 100_000_000.0, Some("ZecKit Fallback Shield".to_string())).await
+        // LIMIT: Only shield 100.0 ZEC at a time to prevent transaction size bloat
+        // 100.0 ZEC is ~32 UTXOs of 3.125 ZEC each.
+        let max_batch_zat = Zatoshis::from_u64(100_000_000 * 100).unwrap();
+        if amount_to_shield_zat > max_batch_zat {
+            info!("  ⚠ Large balance detected ({} ZEC). Shielding in batch of 100.0 ZEC...", utxo_total.into_u64() as f64 / 100_000_000.0);
+            amount_to_shield_zat = max_batch_zat;
+        }
+
+        let recipient = self.get_unified_address().await?;
+        let amount_zec = amount_to_shield_zat.into_u64() as f64 / 100_000_000.0;
+        
+        self.send_from_transparent(&recipient, amount_zec, Some("ZecKit Batch Shield".to_string())).await
     }
 
     /// Helper to send funds specifically from transparent pool

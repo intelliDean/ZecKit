@@ -263,8 +263,8 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     // ========================================================================
     println!();
     println!("Waiting for blocks to propagate and indexer to catch up...");
-    sleep(Duration::from_secs(30)).await;
-    sleep(Duration::from_secs(10)).await;
+    // Increased delay from 30s + 10s to a more robust 45s total
+    sleep(Duration::from_secs(45)).await;
     
     // ========================================================================
     // STEP 10: Generate UA fixtures from faucet API

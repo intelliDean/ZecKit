@@ -26,7 +26,27 @@ jobs:
           backend: '{backend}'
           image_prefix: 'ghcr.io/intellidean/zeckit'
           startup_timeout_minutes: '15'
+
+      # Add your own test steps below!
+      # Example:
+      # - name: Run Custom Smoke Test
+      #   run: |
+      #     chmod +x ./smoke_test.sh
+      #     ./smoke_test.sh
 "#;
+
+fn find_toolkit_root() -> Option<PathBuf> {
+    let mut curr = std::env::current_dir().ok()?;
+    loop {
+        if curr.join("action.yml").exists() {
+            return Some(curr);
+        }
+        if !curr.pop() {
+            break;
+        }
+    }
+    None
+}
 
 fn detect_github_repo() -> String {
     use std::process::Command;
@@ -82,21 +102,24 @@ pub async fn execute(
     backend: String,
     force: bool,
     output: Option<String>,
-    _project_dir: Option<String>,
+    project_dir: Option<String>,
 ) -> Result<()> {
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!("  {}", "ZecKit - Workflow Generator".cyan().bold());
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
 
     // 1. Determine target path
+    let target_base = if let Some(ref dir) = project_dir {
+        PathBuf::from(dir)
+    } else {
+        std::env::current_dir().map_err(|e| ZecKitError::Io(e))?
+    };
+
     let target_path = if let Some(out) = output {
         PathBuf::from(out)
     } else {
-        // Default to .github/workflows/zeckit-e2e.yml in the current dir
-        // Note: We ignore project_dir here because 'init' should target the user's project,
-        // while project_dir points to the toolkit resources.
-        let base_dir = std::env::current_dir().map_err(|e| ZecKitError::Io(e))?;
-        base_dir.join(".github").join("workflows").join("zeckit-e2e.yml")
+        // Default to .github/workflows/zeckit-e2e.yml in the target project dir
+        target_base.join(".github").join("workflows").join("zeckit-e2e.yml")
     };
 
     // 2. Check if file exists
@@ -113,10 +136,9 @@ pub async fn execute(
 
     // 4. Generate content
     // Detection logic:
-    // If we're in the ZecKit toolkit repo (action.yml exists), use detected local repo/branch (Contributor mode)
+    // If we're in the ZecKit toolkit repo (action.yml exists in the root), use detected local repo/branch (Contributor mode)
     // If we're in an external app project (no action.yml), default to intelliDean/ZecKit@main (User mode)
-    let base_dir = std::env::current_dir().map_err(|e| ZecKitError::Io(e))?;
-    let is_toolkit_repo = base_dir.join("action.yml").exists();
+    let is_toolkit_repo = find_toolkit_root().is_some();
 
     let (repo, branch) = if is_toolkit_repo {
         (detect_github_repo(), detect_git_branch())

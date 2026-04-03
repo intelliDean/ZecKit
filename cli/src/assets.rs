@@ -1,10 +1,10 @@
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
-#[folder = "../docker/configs/"]
+#[folder = "assets/configs/"]
 pub struct ConfigAssets;
 
 #[derive(RustEmbed)]
-#[folder = "../"]
+#[folder = "assets/"]
 #[include = "docker-compose.yml"]
 pub struct ComposeAsset;

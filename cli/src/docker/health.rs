@@ -58,9 +58,7 @@ impl HealthChecker {
                     match self.check_backend_sync_parity().await {
                         Ok(_) => return Ok(()),
                         Err(e) => {
-                            if i % 5 == 0 {
-                                pb.set_message(format!("Waiting for {} sync: {}", backend, e));
-                            }
+                            pb.set_message(format!("Waiting for {} sync: {}", backend, e));
                         }
                     }
                 } else {
