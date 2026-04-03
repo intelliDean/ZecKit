@@ -89,7 +89,11 @@ runs:
         if [[ "$RUNNER_OS" == "Linux" ]]; then
           echo "binary=zeckit-linux-x86_64" >> $GITHUB_OUTPUT
         elif [[ "$RUNNER_OS" == "macOS" ]]; then
-          echo "binary=zeckit-macos-x86_64" >> $GITHUB_OUTPUT
+          if [[ "$RUNNER_ARCH" == "ARM64" ]]; then
+            echo "binary=zeckit-macos-aarch64" >> $GITHUB_OUTPUT
+          else
+            echo "binary=zeckit-macos-x86_64" >> $GITHUB_OUTPUT
+          fi
         else
           echo "Unsupported OS: $RUNNER_OS"
           exit 1
