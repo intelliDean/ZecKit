@@ -104,5 +104,6 @@ git push -u origin main
 ### 🛠️ Troubleshooting
 - **Pull Access Denied**: Ensure `image_prefix: 'ghcr.io/intellidean/zeckit'` is present in your YAML configuration.
 - **Startup Timeout**: If Zebra takes too long to sync on CI workers, increase `startup_timeout_minutes` to `20`.
+- **ARM64 (Apple Silicon) / Mac Users**: ZecKit attempts to download pre-built native `aarch64` binaries to ensure blazingly fast CI workflows. If your specific hardware runner fails to resolve (e.g. M4 architecture mismatches, or missing prebuilt releases on a fork), ZecKit will gracefully fall back to **building from source**. This process takes ~2 minutes. Ensure your CI matrix includes a minimum baseline `rust-toolchain` config to prevent source-build errors!
 
 By following these steps, you will have a production-ready Zcash Devnet running on every commit! 🛡️✨

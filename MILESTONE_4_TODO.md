@@ -14,8 +14,8 @@ This roadmap tracks the technical debt, optimizations, and improvements identifi
 - [x] **Platform Parity Tests**: Expand CI to run E2E tests on multiple architectures and OS versions to ensure binary compatibility.
 
 ## 📝 Documentation & UX
-- [ ] **Troubleshooting Guide**: Add a section to `USAGE.md` specifically for ARM64/Mac users explaining the source-build fallback.
-- [ ] **Milestone 4 Feature Set**: Define the next set of user-facing features for ZecKit (e.g., multi-wallet testing, custom chain-params support).
+- [x] **Troubleshooting Guide**: Add a section to `USAGE.md` specifically for ARM64/Mac users explaining the source-build fallback.
+- [x] **Milestone 4 Feature Set**: Define the next set of user-facing features for ZecKit (e.g., multi-wallet testing, custom chain-params support).
 
 ---
 **Status**: DRAFT (Created during 1.0.0-alpha.4 Stabilization) 🚀🛡️✨
