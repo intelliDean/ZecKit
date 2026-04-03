@@ -30,9 +30,10 @@ jobs:
         
       - name: Start Colima (macOS Docker Support)
         if: runner.os == 'macOS'
-        uses: abiosoft/colima-action@v9
-        with:
-          macAddress: true
+        run: |
+          brew install colima docker docker-compose
+          colima start
+          docker --version
       
       - name: Check environment
         run: |
