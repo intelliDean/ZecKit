@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "cli",
+    "zeckit-faucet",
+]
+resolver = "2"
+
+# Release profile applies to all workspace members.
+# LTO and codegen-units settings are intentionally kept per-crate
+# (in each Cargo.toml) until we benchmark their impact on CLI build time.
+[profile.release]
+opt-level = 3

@@ -38,12 +38,11 @@ jobs:
 
       - name: Build CLI (release mode)
         run: |
-          cd cli
-          cargo build --release --target ${{ matrix.target }}
+          cargo build --release -p zeckit --target ${{ matrix.target }}
 
       - name: Prepare binary + checksum
         run: |
-          cp cli/target/${{ matrix.target }}/release/zeckit ${{ matrix.bin_name }}
+          cp target/${{ matrix.target }}/release/zeckit ${{ matrix.bin_name }}
           sha256sum ${{ matrix.bin_name }} > ${{ matrix.bin_name }}.sha256
 
       - name: Publish GitHub Release
