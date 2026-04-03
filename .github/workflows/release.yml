@@ -34,7 +34,7 @@ jobs:
       - name: Build CLI (release mode)
         run: |
           cd cli
-          cargo build --release --locked --target ${{ matrix.target }}
+          cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare binary + checksum
         run: |
