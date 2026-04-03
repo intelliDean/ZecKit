@@ -5,7 +5,7 @@
 ########################################
 FROM rust:1.80-slim-bookworm as builder
 
-ARG ZINGOLIB_VERSION=v3.0.0
+ARG ZINGOLIB_VERSION=zingolib_v3.0.1
 
 RUN apt-get update && apt-get install -y \
     build-essential \
