@@ -102,7 +102,15 @@ runs:
       run: |
         VERSION="${{ github.action_ref }}"
         BINARY="${{ steps.platform.outputs.binary }}"
-        BASE="https://github.com/${{ github.action_repository }}/releases"
+
+        # Robustly detect the repository hosting the action (fork-safe)
+        # GitHub checkouts actions into _actions/<owner>/<repo>/ref
+        OWNER_REPO=$(echo "${{ github.action_path }}" | awk -F'/_actions/' '{print $2}' | cut -d'/' -f1,2)
+        if [ -z "$OWNER_REPO" ]; then
+           OWNER_REPO="zecdev/ZecKit" # Fallback to upstream
+        fi
+
+        BASE="https://github.com/${OWNER_REPO}/releases"
 
         mkdir -p "${{ github.action_path }}/bin"
         
