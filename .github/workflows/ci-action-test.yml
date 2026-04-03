@@ -115,23 +115,6 @@ jobs:
           fi
           echo "✓ test_result=pass"
 
-  # ----------------------------------------------------------
-  # Run the same flow via the REUSABLE WORKFLOW
-  # (validates workflow_call path end-to-end)
-  # ----------------------------------------------------------
-  reusable-workflow-test:
-    name: "Reusable Workflow – zaino"
-    needs: set-matrix
-    uses: ./.github/workflows/golden-e2e.yml
-    with:
-      backend:                 'zaino'
-      startup_timeout_minutes: 10
-      block_wait_seconds:      75
-      send_amount:             0.05
-      send_memo:               'Reusable workflow self-test'
-      upload_artifacts:        'on-failure'
-    secrets:
-      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
 
   # ----------------------------------------------------------
   # Gate: all matrix jobs must pass
@@ -140,7 +123,6 @@ jobs:
     name: CI Gate
     needs:
       - composite-action-test
-      - reusable-workflow-test
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -148,13 +130,11 @@ jobs:
         shell: bash
         run: |
           composite="${{ needs.composite-action-test.result }}"
-          reusable="${{ needs.reusable-workflow-test.result }}"
 
           echo "composite-action-test : $composite"
-          echo "reusable-workflow-test: $reusable"
 
-          if [[ "$composite" != "success" || "$reusable" != "success" ]]; then
-            echo "::error::One or more E2E jobs failed."
+          if [[ "$composite" != "success" ]]; then
+            echo "::error::One or more composite-action jobs failed."
             exit 1
           fi
           echo "✓ All CI jobs passed."

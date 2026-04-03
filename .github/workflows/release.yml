@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - m3-implementation
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
@@ -21,6 +23,9 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             bin_name: zeckit-linux-x86_64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bin_name: zeckit-macos-x86_64
 
     runs-on: ${{ matrix.os }}
 
