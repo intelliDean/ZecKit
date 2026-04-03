@@ -102,7 +102,7 @@ runs:
       run: |
         VERSION="${{ github.action_ref }}"
         BINARY="${{ steps.platform.outputs.binary }}"
-        BASE="https://github.com/zecdev/ZecKit/releases"
+        BASE="https://github.com/${{ github.action_repository }}/releases"
 
         mkdir -p "${{ github.action_path }}/bin"
         
