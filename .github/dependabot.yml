@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Maintain Cargo dependencies natively (includes git-pinned crates like zingolib)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "rust"
+
+  # Keep GitHub Actions up to date mapping automatically  
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
