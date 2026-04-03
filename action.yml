@@ -144,8 +144,8 @@ runs:
       shell: bash
       run: |
         echo "Building ZecKit CLI from source..."
-        cd ${{ github.action_path }}/cli
-        cargo build
+        cd ${{ github.action_path }}
+        cargo build -p zeckit
       
     - name: Registry Login
       if: inputs.ghcr_token != ''
@@ -164,7 +164,7 @@ runs:
         if [[ "${{ steps.download.outputs.downloaded }}" == "true" ]]; then
            CLI="${{ github.action_path }}/bin/zeckit"
         else
-           CLI="${{ github.action_path }}/cli/target/debug/zeckit"
+           CLI="${{ github.action_path }}/target/debug/zeckit"
         fi
         
         echo "Using ZecKit CLI at: $CLI"
@@ -227,6 +227,7 @@ runs:
       shell: bash
       run: |
         echo "Collecting container logs..."
+        if [ ! -d ~/.zeckit ]; then echo "zeckit devnet never launched successfully - skipping artifact collection"; exit 0; fi
         cd ~/.zeckit
         mkdir -p logs
         docker ps -a > logs/containers.log 2>&1 || true

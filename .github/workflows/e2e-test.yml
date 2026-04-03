@@ -27,6 +27,12 @@ jobs:
       
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        
+      - name: Start Colima (macOS Docker Support)
+        if: runner.os == 'macOS'
+        uses: abiosoft/colima-action@v9
+        with:
+          macAddress: true
       
       - name: Check environment
         run: |
@@ -68,11 +74,9 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Building zeckit CLI"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          cd cli
-          cargo build --release
-          cd ..
+          cargo build --release -p zeckit
           echo "✓ CLI binary built"
-          ls -lh cli/target/release/zeckit
+          ls -lh target/release/zeckit
           echo ""
       
       - name: Start devnet with zaino backend
@@ -94,7 +98,7 @@ jobs:
           export ZECKIT_SRC_PATH=${{ github.workspace }}
 
           # No --fresh flag, but volumes are already cleared above
-          ./cli/target/release/zeckit up --backend zaino &
+          ./target/release/zeckit up --backend zaino &
           PID=$!
           
           SECONDS=0
@@ -137,7 +141,7 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
           
-          ./cli/target/release/zeckit test
+          ./target/release/zeckit test
           
           TEST_EXIT_CODE=$?
           
