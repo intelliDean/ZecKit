@@ -25,9 +25,27 @@ git remote add origin https://github.com/USERNAME/REPO_NAME.git
 > `git remote set-url origin https://<TOKEN>@github.com/USERNAME/REPO_NAME.git`
 
 ### Step 3: Generate the ZecKit CI Workflow
-Use the ZecKit CLI to generate the standardized GitHub Action configuration. If you don't have the binary, you can run it via Cargo:
+Use the **ZecKit CLI** to generate the standardized GitHub Action configuration. Since you are likely running this from your own project directory, use one of these three options:
+
+#### Option A: Run via Cargo (Safest for development)
+If you want to ensure you are running the latest code, point Cargo to the ZecKit manifest:
 ```bash
-# Run the ZecKit Generator (assuming ZecKit is a sibling or installed)
+cargo run --manifest-path ../ZecKit/cli/Cargo.toml -- init --backend zaino
+```
+
+#### Option B: Run the Pre-built Binary (Fastest)
+If you have already built the project, run the binary directly:
+```bash
+../ZecKit/cli/target/debug/zeckit init --backend zaino
+```
+
+#### Option C: Install Globally (Recommended for frequent use)
+Install the CLI to your local path so you can run `zeckit` from anywhere:
+```bash
+# Run this once from the ZecKit/cli folder
+cargo install --path .
+
+# Then run from your project:
 zeckit init --backend zaino
 ```
 *   **What this does**: Creates `.github/workflows/zeckit-e2e.yml`.
