@@ -14,7 +14,11 @@ on:
 jobs:
   e2e-tests:
     name: ZecKit E2E Test Suite
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     
     timeout-minutes: 120
     
@@ -24,19 +28,37 @@ jobs:
       
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        
+      - name: Setup Docker (macOS only)
+        if: runner.os == 'macOS' && false # Temporarily disabled as GH ARM runners lack nested virtualization
+        uses: douglascamata/setup-docker-macos-action@v1-alpha
+      
+      - name: Run Unit Tests
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Running Unit Tests"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          cargo test --workspace --exclude zeckit-e2e
+          echo "✓ Unit tests passed"
+          echo ""
       
       - name: Check environment
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Environment Check"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          docker --version
-          docker compose version
+          if command -v docker >/dev/null 2>&1; then
+            docker --version
+            docker compose version
+          else
+            echo "Docker not available on this runner"
+          fi
           rustc --version
           cargo --version
           echo ""
       
       - name: Clean up previous runs
+        if: runner.os != 'macOS'
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Cleaning Up Previous Runs"
@@ -65,14 +87,22 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Building zeckit CLI"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          cd cli
-          cargo build --release
-          cd ..
+          cargo build --release -p zeckit
           echo "✓ CLI binary built"
-          ls -lh cli/target/release/zeckit
+          ls -lh target/release/zeckit
+          echo ""
+      
+      - name: Verify binary execution
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Verifying Binary Execution"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          ./target/release/zeckit --help
+          echo "✓ Binary is operational"
           echo ""
       
       - name: Start devnet with zaino backend
+        if: runner.os != 'macOS'
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Starting ZecKit Devnet"
@@ -91,7 +121,7 @@ jobs:
           export ZECKIT_SRC_PATH=${{ github.workspace }}
 
           # No --fresh flag, but volumes are already cleared above
-          ./cli/target/release/zeckit up --backend zaino &
+          ./target/release/zeckit up --backend zaino &
           PID=$!
           
           SECONDS=0
@@ -128,13 +158,14 @@ jobs:
           echo ""
       
       - name: Run smoke tests
+        if: runner.os != 'macOS'
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Running Smoke Tests"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
           
-          ./cli/target/release/zeckit test
+          ./target/release/zeckit test
           
           TEST_EXIT_CODE=$?
           
@@ -148,7 +179,7 @@ jobs:
           echo ""
       
       - name: Check wallet balance
-        if: always()
+        if: always() && runner.os != 'macOS'
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Wallet Status"
@@ -159,7 +190,7 @@ jobs:
           echo ""
       
       - name: Check faucet status
-        if: always()
+        if: always() && runner.os != 'macOS'
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Faucet Status"
@@ -170,7 +201,7 @@ jobs:
           echo ""
       
       - name: Collect logs
-        if: always()
+        if: always() && runner.os != 'macOS'
         run: |
           echo "Collecting logs for artifact..."
           mkdir -p logs
@@ -185,7 +216,7 @@ jobs:
           echo "✓ Logs collected"
       
       - name: Upload logs on failure
-        if: failure()
+        if: failure() && runner.os != 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-logs-${{ github.run_number }}
@@ -193,7 +224,7 @@ jobs:
           retention-days: 7
       
       - name: Cleanup
-        if: always()
+        if: always() && runner.os != 'macOS'
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Cleanup"
@@ -216,15 +247,21 @@ jobs:
           echo ""
           
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✓ Status: ALL TESTS PASSED ✓"
+            echo "✓ Status: ALL CHECKS PASSED ✓"
             echo ""
-            echo "Completed checks:"
+            echo "Completed tasks:"
             echo "  ✓ Environment checked"
+            echo "  ✓ Unit tests passed"
             echo "  ✓ CLI binary built"
-            echo "  ✓ Devnet started (clean state, cached images)"
-            echo "  ✓ Smoke tests passed"
-            echo "  ✓ Wallet synced"
-            echo "  ✓ Faucet operational"
+            echo "  ✓ Binary execution verified"
+            if [ "${{ runner.os }}" != "macOS" ]; then
+              echo "  ✓ Devnet started (Linux only)"
+              echo "  ✓ Smoke tests passed (Linux only)"
+              echo "  ✓ Wallet synced (Linux only)"
+              echo "  ✓ Faucet operational (Linux only)"
+            else
+              echo "  - Note: Docker E2E skipped on macOS ARM runner"
+            fi
             echo ""
             echo "The ZecKit devnet is working correctly!"
           else

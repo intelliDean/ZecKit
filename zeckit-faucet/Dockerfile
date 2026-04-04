@@ -14,13 +14,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /build
 
-# Copy only manifest to cache dependencies
-COPY . .
+# Copy only manifest and source files needed for build
+COPY Cargo.toml Cargo.lock ./
+COPY cli/Cargo.toml cli/Cargo.toml
+COPY zeckit-faucet/Cargo.toml zeckit-faucet/Cargo.toml
+COPY cli/src cli/src
+COPY zeckit-faucet/src zeckit-faucet/src
+COPY cli/assets cli/assets
 
-# Build in release mode
+# Build in release mode targeting the faucet specifically
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-RUN cargo build --release
+RUN cargo build --release -p zeckit-faucet
 
 # ========================================
 # Runtime Stage

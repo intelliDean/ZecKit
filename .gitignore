@@ -45,7 +45,10 @@ build/
 *.zip
 
 # Rust (for future CLI in M2)
-Cargo.lock
+# NOTE: root Cargo.lock is tracked (workspace lockfile).
+# Member-level lockfiles are ignored to avoid confusion.
+cli/Cargo.lock
+zeckit-faucet/Cargo.lock
 target/
 
 # Python (for faucet in M2)
@@ -108,3 +111,5 @@ zeckit-sample
 
 demo.md
 pdf_content.txt
+# Runtime Generation
+fixtures/
