@@ -145,6 +145,26 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
         }
         sleep(Duration::from_secs(2)).await;
     }
+
+    // NEW: Wait for Sync Parity
+    println!("Waiting for Sync Node to catch up with Miner Node...");
+    let start_parity = std::time::Instant::now();
+    loop {
+        pb.tick();
+        match checker.check_zebra_sync_parity().await {
+            Ok(_) => {
+                println!("✓ Sync parity achieved");
+                break;
+            }
+            Err(e) => {
+                if start_parity.elapsed().as_secs() > timeout * 60 {
+                    return Err(ZecKitError::ServiceNotReady(format!("Sync parity not achieved after {} minutes: {}", timeout, e)));
+                }
+            }
+        }
+        sleep(Duration::from_secs(2)).await;
+    }
+
     println!("[1/3] Zebra Cluster ready (100%)");
     println!();
     

@@ -1,6 +1,7 @@
 [network]
 network = "Regtest"
 listen_addr = "0.0.0.0:8233"
+initial_regtest_peers = []
 
 [consensus]
 checkpoint_sync = false

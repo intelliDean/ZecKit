@@ -31,6 +31,19 @@ impl HealthChecker {
         self.check_zebra(18232).await
     }
 
+    pub async fn check_zebra_sync_parity(&self) -> Result<()> {
+        let miner_height = self.get_zebra_height(8232).await?;
+        let sync_height = self.get_zebra_height(18232).await?;
+
+        if sync_height < miner_height {
+            return Err(ZecKitError::HealthCheck(format!(
+                "Sync Node lagging: Miner={} Sync={}", 
+                miner_height, sync_height
+            )));
+        }
+        Ok(())
+    }
+
     pub async fn wait_for_faucet(&self, pb: &ProgressBar) -> Result<()> {
         for i in 0..self.max_retries {
             pb.tick();

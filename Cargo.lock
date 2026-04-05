@@ -8657,7 +8657,7 @@ dependencies = [
 
 [[package]]
 name = "zeckit"
-version = "0.1.1"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8678,7 +8678,7 @@ dependencies = [
 
 [[package]]
 name = "zeckit-faucet"
-version = "0.3.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "axum 0.7.9",

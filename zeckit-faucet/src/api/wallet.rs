@@ -25,12 +25,23 @@ pub(crate) async fn sync_wallet(
 ) -> Result<Json<serde_json::Value>, FaucetError> {
     let mut wallet = state.wallet.write().await;
     
-    wallet.sync().await?;
-    
-    Ok(Json(json!({
-        "status": "synced",
-        "message": "Wallet synced with blockchain"
-    })))
+    match wallet.sync().await {
+        Ok(_) => {
+            Ok(Json(json!({
+                "status": "synced",
+                "message": "Wallet synced with blockchain"
+            })))
+        },
+        Err(e) if e.to_string().contains("sync is already running") => {
+            // Log for visibility but return success to avoid blocking the caller
+            tracing::info!("Wallet sync requested but already in progress");
+            Ok(Json(json!({
+                "status": "syncing",
+                "message": "Wallet sync is already in progress"
+            })))
+        },
+        Err(e) => Err(e),
+    }
 }
 
 /// POST /shield - Shields transparent funds to Orchard
