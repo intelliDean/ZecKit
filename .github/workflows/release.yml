@@ -16,8 +16,27 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
   build:
+    name: Build and Upload Binaries
+    needs: create-release
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -45,11 +64,17 @@ jobs:
 
       - name: Prepare binary + checksum
         run: |
+          # Use different commands for linux vs mac checksums if needed, 
+          # but sha256sum is standard on most runners now.
           cp target/${{ matrix.target }}/release/zeckit ${{ matrix.bin_name }}
-          sha256sum ${{ matrix.bin_name }} > ${{ matrix.bin_name }}.sha256
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            shasum -a 256 ${{ matrix.bin_name }} > ${{ matrix.bin_name }}.sha256
+          else
+            sha256sum ${{ matrix.bin_name }} > ${{ matrix.bin_name }}.sha256
+          fi
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload to Existing Release
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ matrix.bin_name }}
