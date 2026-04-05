@@ -146,7 +146,7 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
         sleep(Duration::from_secs(2)).await;
     }
 
-    // NEW: Wait for Sync Parity
+    // NEW: Wait for Sync Parity (Soft-fail - 30 second limit)
     println!("Waiting for Sync Node to catch up with Miner Node...");
     let start_parity = std::time::Instant::now();
     loop {
@@ -157,8 +157,11 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
                 break;
             }
             Err(e) => {
-                if start_parity.elapsed().as_secs() > timeout * 60 {
-                    return Err(ZecKitError::ServiceNotReady(format!("Sync parity not achieved after {} minutes: {}", timeout, e)));
+                // If we've waited 30s, don't block the whole devnet
+                if start_parity.elapsed().as_secs() > 30 {
+                    println!("{}", format!("⚠ Warning: Sync node is lagging ({}). Continuing anyway...", e).yellow());
+                    println!("{}", "  (LWD and Faucet will point to the healthy Miner node)".yellow());
+                    break;
                 }
             }
         }
