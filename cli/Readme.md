@@ -1,13 +1,24 @@
 # zeckit CLI
 
-Command-line tool for managing ZecKit development environment.
+Command-line tool for managing the ZecKit development environment (Zebra regtest + Faucet).
 
 ## Installation
+
+### From crates.io (Recommended)
+
+```bash
+cargo install zeckit
+```
+
+### From GitHub Releases
+
+Download the latest pre-built binary for your platform from the [Releases](https://github.com/intellidean/ZecKit/releases) page.
 
 ### From Source
 
 ```bash
-cd cli
+git clone https://github.com/intellidean/ZecKit.git
+cd ZecKit/cli
 cargo build --release
 ```
 

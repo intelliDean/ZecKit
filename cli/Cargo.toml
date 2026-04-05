@@ -7,9 +7,10 @@ description = "ZecKit CLI - Developer toolkit for Zcash on Zebra"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/intellidean/ZecKit"
 homepage = "https://github.com/intellidean/ZecKit"
+documentation = "https://docs.rs/zeckit"
 readme = "Readme.md"
 keywords = ["zcash", "zebra", "regtest", "faucet", "devnet"]
-categories = ["development-tools", "cryptography::cryptocurrencies"]
+categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
 name = "zeckit"
