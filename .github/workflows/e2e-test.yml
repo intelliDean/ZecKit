@@ -116,12 +116,13 @@ jobs:
           # The ZecKit CLI handle pulls and builds automatically.
           # Manual 'docker compose pull' is redundant and can fail on older V2 plugins.
           
-          # Force build from source if images are stale/missing
-          export ZECKIT_ALLOW_BUILD=true
+          # Force pre-built image pulls from GHCR (prevents slow CI builds)
+          export ZECKIT_ALLOW_BUILD=false
           export ZECKIT_SRC_PATH=${{ github.workspace }}
 
-          # Increase timeout to 20 mins to allow for Zaino compilation + Zebra init
-          ./target/release/zeckit up --backend zaino --timeout 20 &
+          # Use 15 minute timeout for image pulls + node initialization
+          ./target/release/zeckit up --backend zaino --timeout 15 &
+
           PID=$!
           
           SECONDS=0

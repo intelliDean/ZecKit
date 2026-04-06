@@ -4,10 +4,13 @@ on:
   push:
     branches:
       - main
-      - m3-implementation
-      - feat/standalone-cli
-      - feat/nu6-upgrade
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
   workflow_dispatch:
+
 
 permissions:
   contents: read
