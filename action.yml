@@ -9,7 +9,7 @@ inputs:
   startup_timeout_minutes:
     description: 'Minutes to wait for Zebra + Backend to reach health'
     required: false
-    default: '10'
+    default: '20'
   block_wait_seconds:
     description: 'Seconds to wait after mining for propagation'
     required: false

@@ -120,8 +120,8 @@ jobs:
           export ZECKIT_ALLOW_BUILD=true
           export ZECKIT_SRC_PATH=${{ github.workspace }}
 
-          # No --fresh flag, but volumes are already cleared above
-          ./target/release/zeckit up --backend zaino &
+          # Increase timeout to 20 mins to allow for Zaino compilation + Zebra init
+          ./target/release/zeckit up --backend zaino --timeout 20 &
           PID=$!
           
           SECONDS=0

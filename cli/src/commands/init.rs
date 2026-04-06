@@ -25,7 +25,7 @@ jobs:
         with:
           backend: '{backend}'
           image_prefix: 'ghcr.io/intellidean/zeckit'
-          startup_timeout_minutes: '15'
+          startup_timeout_minutes: '20'
 
       # Add your own test steps below!
       # Example:
