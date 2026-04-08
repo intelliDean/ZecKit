@@ -9,7 +9,13 @@ ZecKit is a developer toolkit designed to provide a standardized, high-performan
 Before integrating with CI, you can use the **ZecKit CLI** to manage your local devnet.
 
 ### 1. Installation
-To use the `zeckit` command globally, install it from the repository root:
+
+The easiest way to use the **ZecKit CLI** is to install it via crates.io:
+```bash
+cargo install zeckit
+```
+
+*Note: If you are a contributor and want to install from the local source instead, run:*
 ```bash
 cd ZecKit/cli
 cargo install --path .

@@ -34,9 +34,9 @@ inputs:
     required: false
     default: 'ghcr.io/intellidean/zeckit'
   allow_build:
-    description: "Whether to allow building images from source if missing (default: false for speed)"
+    description: "Whether to allow building images from source if missing (default: true for stability)"
     required: false
-    default: 'false'
+    default: 'true'
   miner_address:
     description: 'Custom transparent address to receive Zebra mining rewards (uses embedded default if omitted)'
     required: false
