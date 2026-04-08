@@ -6,6 +6,9 @@ services:
   # ========================================
   zebra-miner:
     image: ${IMAGE_PREFIX:-zeckit}/zebrad:${TAG:-latest}
+    build:
+      context: ./docker/zebra
+      dockerfile: Dockerfile
     ports:
       - "8232:8232"
       - "8233:8233"
@@ -30,6 +33,9 @@ services:
   # ========================================
   zebra-sync:
     image: ${IMAGE_PREFIX:-zeckit}/zebra-sync:${TAG:-latest}
+    build:
+      context: ./docker/zebra
+      dockerfile: Dockerfile
     ports:
       - "18232:8232"
       - "18233:8233"
