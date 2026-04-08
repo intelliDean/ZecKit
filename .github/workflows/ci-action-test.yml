@@ -71,7 +71,7 @@ jobs:
     name: "Composite Action – ${{ matrix.backend }}"
     needs: set-matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -86,14 +86,12 @@ jobs:
         uses: ./
         with:
           backend:                 ${{ matrix.backend }}
-          startup_timeout_minutes: '20'
+          startup_timeout_minutes: '10'
           block_wait_seconds:      '75'
           send_amount:             '0.05'
           send_memo:               'CI self-test – ${{ matrix.backend }}'
           upload_artifacts:        ${{ github.event.inputs.upload_artifacts || 'on-failure' }}
           ghcr_token:              ${{ secrets.GITHUB_TOKEN }}
-          allow_build:             'true'
-          image_prefix:            'ghcr.io/intellidean/zeckit'
 
       - name: Print action outputs
         if: always()

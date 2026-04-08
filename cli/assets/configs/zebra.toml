@@ -19,6 +19,7 @@ miner_address = "tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd"
 [network.testnet_parameters.activation_heights]
 NU5 = 1
 NU6 = 1
+"NU6.1" = 1
 
 [[network.testnet_parameters.lockbox_disbursements]]
 address = "t2RnBRiqrN1nW4ecZs1Fj3WWjNdnSs4kiX8"
