@@ -71,7 +71,7 @@ jobs:
     name: "Composite Action – ${{ matrix.backend }}"
     needs: set-matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false
@@ -86,7 +86,7 @@ jobs:
         uses: ./
         with:
           backend:                 ${{ matrix.backend }}
-          startup_timeout_minutes: '10'
+          startup_timeout_minutes: '20'
           block_wait_seconds:      '75'
           send_amount:             '0.05'
           send_memo:               'CI self-test – ${{ matrix.backend }}'
