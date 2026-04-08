@@ -1,7 +1,6 @@
 [network]
 network = "Regtest"
 listen_addr = "0.0.0.0:8233"
-initial_regtest_peers = ["zebra-miner:8233"]
 initial_testnet_peers = ["zebra-miner:8233"]
 initial_mainnet_peers = ["zebra-miner:8233"]
 
