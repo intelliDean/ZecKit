@@ -92,6 +92,8 @@ jobs:
           send_memo:               'CI self-test – ${{ matrix.backend }}'
           upload_artifacts:        ${{ github.event.inputs.upload_artifacts || 'on-failure' }}
           ghcr_token:              ${{ secrets.GITHUB_TOKEN }}
+          allow_build:             'true'
+          image_prefix:            'ghcr.io/intellidean/zeckit'
 
       - name: Print action outputs
         if: always()
