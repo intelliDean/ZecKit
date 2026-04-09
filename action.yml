@@ -145,7 +145,7 @@ runs:
       run: |
         echo "Building ZecKit CLI from source..."
         cd ${{ github.action_path }}
-        cargo build -p zeckit
+        cargo build --locked -p zeckit
       
     - name: Registry Login
       if: inputs.ghcr_token != ''

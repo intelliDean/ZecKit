@@ -60,7 +60,7 @@ jobs:
 
       - name: Build CLI (release mode)
         run: |
-          cargo build --release -p zeckit --target ${{ matrix.target }}
+          cargo build --release --locked -p zeckit --target ${{ matrix.target }}
 
       - name: Prepare binary + checksum
         run: |

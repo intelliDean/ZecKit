@@ -4,7 +4,7 @@ This roadmap tracks the technical debt, optimizations, and improvements identifi
 
 ## 🛠️ Infrastructure Improvements (Milestone 4)
 - [x] **Root Rust Workspace**: Refactor the separate `/cli` and `/zeckit-faucet` directories into a single root-level workspace to unify dependency management.
-- [ ] **Strict Dependency Locking**: Re-enable the `--locked` flag in CI once the workspace architecture is unified to prevent dependency drift.
+- [x] **Strict Dependency Locking**: Re-enable the `--locked` flag in CI once the workspace architecture is unified to prevent dependency drift.
 - [x] **ARM64 (Apple Silicon) Binaries**: Add `aarch64-apple-darwin` to the release matrix in `release.yml` to provide high-speed CI support for modern Mac developers.
 - [x] **Automated Version Bumping**: Implement a tool or workflow to periodically check and update the pinned versions of `zingolib` and Zebra to keep ZecKit current with the Zcash protocol.
 
@@ -18,4 +18,4 @@ This roadmap tracks the technical debt, optimizations, and improvements identifi
 - [x] **Milestone 4 Feature Set**: Define the next set of user-facing features for ZecKit (e.g., multi-wallet testing, custom chain-params support).
 
 ---
-**Status**: DRAFT (Created during 1.0.0-alpha.4 Stabilization) 🚀🛡️✨
+**Status**: COMPLETED 🚀🛡️✨
