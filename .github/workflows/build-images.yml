@@ -11,17 +11,27 @@ on:
       - develop
   workflow_dispatch:
 
-
 permissions:
   contents: read
   packages: write
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
+        service: [zebrad, zebra-sync, lightwalletd, zaino, zingo, zeckit-faucet]
+        platform: [amd64, arm64]
         include:
+          - platform: amd64
+            runner: ubuntu-latest
+            os_arch: linux/amd64
+          - platform: arm64
+            runner: ubuntu-24.04-arm64
+            os_arch: linux/arm64
+          - service: zeckit-faucet
+            context: .
+            dockerfile: ./zeckit-faucet/Dockerfile
           - service: zebrad
             context: ./docker/zebra
           - service: zebra-sync
@@ -32,16 +42,12 @@ jobs:
             context: ./docker/zaino
           - service: zingo
             context: ./docker/zingo
-          - service: zeckit-faucet
-            context: .
-            dockerfile: ./zeckit-faucet/Dockerfile
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -58,13 +64,66 @@ jobs:
         shell: bash
         run: echo "name=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
 
-      - name: Build and push
+      - name: Build and push by digest
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile || format('{0}/Dockerfile', matrix.context) }}
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.os_arch }}
+          outputs: type=image,name=ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.platform }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.service }}-${{ matrix.platform }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    strategy:
+      matrix:
+        service: [zebrad, zebra-sync, lightwalletd, zaino, zingo, zeckit-faucet]
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ matrix.service }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase repo
+        id: repo
+        shell: bash
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< '{"tags":["ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:latest"]}') \
+            $(printf 'ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:latest
