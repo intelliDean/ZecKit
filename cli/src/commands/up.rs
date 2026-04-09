@@ -172,6 +172,14 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
                 break;
             }
             Err(e) => {
+                if std::time::Instant::now() >= deadline {
+                    let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
+                    return Err(ZecKitError::ServiceNotReady(format!(
+                        "Global timeout reached during Sync Parity. (Budget: {} min)",
+                        timeout
+                    )));
+                }
+
                 if std::time::Instant::now() >= parity_deadline {
                     println!("{}", format!("⚠ Warning: Sync node is lagging ({}). Continuing anyway...", e).yellow());
                     println!("{}", "  (LWD and Faucet will point to the healthy Miner node)".yellow());
@@ -295,6 +303,13 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     
     // We already have a checker instance from Step 3
     if let Err(e) = checker.wait_for_backend("lwd", &pb).await {
+        if std::time::Instant::now() >= deadline {
+            let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
+            return Err(ZecKitError::ServiceNotReady(format!(
+                "Global timeout reached during final verification: {}", e
+            )));
+        }
+        
         println!("{}", format!("Warning: Sync verification incomplete: {}", e).yellow());
         println!("  Continuing with best-effort wait...");
         sleep(Duration::from_secs(15)).await;
