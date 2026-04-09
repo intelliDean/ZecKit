@@ -85,12 +85,19 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     // STEP 3: Wait for Zebra
     // ========================================================================
     let checker = HealthChecker::new();
-    let start = std::time::Instant::now();
-    
+    // Single global deadline for the entire startup sequence.
+    // All service wait-loops share this deadline so `timeout` is a hard cap,
+    // not a per-service budget that compounds into N × timeout.
+    let deadline = std::time::Instant::now() + Duration::from_secs(timeout * 60);
+
+    /// Returns remaining seconds until the deadline (0 if already past).
+    fn secs_remaining(deadline: std::time::Instant) -> u64 {
+        deadline.saturating_duration_since(std::time::Instant::now()).as_secs()
+    }
+
     // Wait for Miner
     println!("Waiting for Zebra Miner node to initialize...");
     let mut last_error_miner = String::new();
-    let mut last_error_sync = String::new();
     let mut last_error_print = std::time::Instant::now();
 
     loop {
@@ -107,10 +114,13 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
                     last_error_miner = err_str;
                     last_error_print = std::time::Instant::now();
                 }
-                
-                if start.elapsed().as_secs() > timeout * 60 {
+
+                if std::time::Instant::now() >= deadline {
                     let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
-                    return Err(ZecKitError::ServiceNotReady(format!("Zebra Miner not ready after {} minutes: {}", timeout, e)));
+                    return Err(ZecKitError::ServiceNotReady(format!(
+                        "Zebra Miner not ready within the {} minute global timeout: {}",
+                        timeout, e
+                    )));
                 }
             }
         }
@@ -119,8 +129,8 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
 
     // Wait for Sync Node
     println!("Waiting for Zebra Sync node to initialize and peer...");
-    let start_sync = std::time::Instant::now();
-    let mut last_error_print = std::time::Instant::now();
+    let mut last_error_sync = String::new();
+    last_error_print = std::time::Instant::now();
 
     loop {
         pb.tick();
@@ -137,18 +147,23 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
                     last_error_print = std::time::Instant::now();
                 }
 
-                if start_sync.elapsed().as_secs() > timeout * 60 {
+                if std::time::Instant::now() >= deadline {
                     let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
-                    return Err(ZecKitError::ServiceNotReady(format!("Zebra Sync Node not ready after {} minutes: {}", timeout, e)));
+                    return Err(ZecKitError::ServiceNotReady(format!(
+                        "Zebra Sync Node not ready within the {} minute global timeout: {}",
+                        timeout, e
+                    )));
                 }
             }
         }
         sleep(Duration::from_secs(2)).await;
     }
 
-    // NEW: Wait for Sync Parity (Soft-fail - 30 second limit)
+    // Wait for Sync Parity (bounded by 30s OR global deadline, whichever comes first).
+    // This is a soft-fail: if the sync node is still lagging after its budget,
+    // we warn and continue so the rest of the stack isn't blocked.
     println!("Waiting for Sync Node to catch up with Miner Node...");
-    let start_parity = std::time::Instant::now();
+    let parity_deadline = (std::time::Instant::now() + Duration::from_secs(30)).min(deadline);
     loop {
         pb.tick();
         match checker.check_zebra_sync_parity().await {
@@ -157,8 +172,7 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
                 break;
             }
             Err(e) => {
-                // If we've waited 30s, don't block the whole devnet
-                if start_parity.elapsed().as_secs() > 30 {
+                if std::time::Instant::now() >= parity_deadline {
                     println!("{}", format!("⚠ Warning: Sync node is lagging ({}). Continuing anyway...", e).yellow());
                     println!("{}", "  (LWD and Faucet will point to the healthy Miner node)".yellow());
                     break;
@@ -170,60 +184,67 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
 
     println!("[1/3] Zebra Cluster ready (100%)");
     println!();
-    
+
     // ========================================================================
     // STEP 4: Wait for Backend (if using lwd or zaino)
     // ========================================================================
     if backend == "lwd" || backend == "zaino" {
         let backend_name = if backend == "lwd" { "Lightwalletd" } else { "Zaino" };
-        let start = std::time::Instant::now();
-        
+
         loop {
             pb.tick();
-            
+
             if checker.wait_for_backend(&backend, &pb).await.is_ok() {
                 println!("[2/3] {} ready (100%)", backend_name);
                 break;
             }
-            
-            let elapsed = start.elapsed().as_secs();
-            let limit = timeout * 60;
-            if elapsed < limit {
-                let progress = (elapsed as f64 / limit as f64 * 100.0).min(99.0) as u32;
-                print!("\r[2/3] Starting {}... {}%", backend_name, progress);
-                io::stdout().flush().ok();
-                sleep(Duration::from_secs(1)).await;
-            } else {
+
+            if std::time::Instant::now() >= deadline {
                 let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
-                return Err(ZecKitError::ServiceNotReady(format!("{} not ready after {} minutes", backend_name, timeout)));
+                return Err(ZecKitError::ServiceNotReady(format!(
+                    "{} not ready within the {} minute global timeout",
+                    backend_name, timeout
+                )));
             }
+
+            // Show estimated progress relative to the global deadline
+            let remaining = secs_remaining(deadline);
+            let total = timeout * 60;
+            let elapsed = total.saturating_sub(remaining);
+            let progress = (elapsed as f64 / total as f64 * 100.0).min(99.0) as u32;
+            print!("\r[2/3] Starting {}... {}%", backend_name, progress);
+            io::stdout().flush().ok();
+            sleep(Duration::from_secs(1)).await;
         }
         println!();
     }
-    
+
     // ========================================================================
     // STEP 5: Wait for Faucet
     // ========================================================================
-    let start = std::time::Instant::now();
     loop {
         pb.tick();
-        
+
         if checker.wait_for_faucet(&pb).await.is_ok() {
             println!("[3/3] Faucet ready (100%)");
             break;
         }
-        
-        let elapsed = start.elapsed().as_secs();
-        let limit = timeout * 60;
-        if elapsed < limit {
-            let progress = (elapsed as f64 / limit as f64 * 100.0).min(99.0) as u32;
-            print!("\r[3/3] Starting Faucet... {}%", progress);
-            io::stdout().flush().ok();
-            sleep(Duration::from_secs(1)).await;
-        } else {
+
+        if std::time::Instant::now() >= deadline {
             let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
-            return Err(ZecKitError::ServiceNotReady(format!("Faucet not ready after {} minutes", timeout)));
+            return Err(ZecKitError::ServiceNotReady(format!(
+                "Faucet not ready within the {} minute global timeout",
+                timeout
+            )));
         }
+
+        let remaining = secs_remaining(deadline);
+        let total = timeout * 60;
+        let elapsed = total.saturating_sub(remaining);
+        let progress = (elapsed as f64 / total as f64 * 100.0).min(99.0) as u32;
+        print!("\r[3/3] Starting Faucet... {}%", progress);
+        io::stdout().flush().ok();
+        sleep(Duration::from_secs(1)).await;
     }
     println!();
     
