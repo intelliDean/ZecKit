@@ -27,7 +27,7 @@ jobs:
             runner: ubuntu-latest
             os_arch: linux/amd64
           - platform: arm64
-            runner: ubuntu-24.04-arm64
+            runner: ubuntu-24.04-arm
             os_arch: linux/arm64
           - service: zeckit-faucet
             context: .
