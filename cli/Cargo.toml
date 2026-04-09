@@ -1,6 +1,6 @@
 [package]
 name = "zeckit"
-version = "1.0.4"
+version = "1.0.5"
 edition = "2021"
 authors = ["Dapps over Apps"]
 description = "ZecKit CLI - Developer toolkit for Zcash on Zebra"
