@@ -10,7 +10,7 @@
 
 ## Project Status
 
-**Current Milestone:** M3 Complete — NU6/NU6.1 Upgraded ✅
+**Current Milestone:** M5 Complete — Multi-Wallet Testing Arrays ✅ | M6 In Progress — 90-Day Maintenance ⏳
 
 - **Network Support:** Full compatibility with **NU6** and **NU6.1** Zcash network upgrades.
 - **Wallet Engine:** Upgraded to **Zingolib v3.0.0**.
@@ -39,17 +39,36 @@
 - Reusable GitHub Action for CI (E2E Tests + Smoke Tests)
 - Two-node Zebra Regtest cluster (miner + sync)
 - Full E2E golden flow: fund → shield → shielded send verified on-chain
-- 7-test smoke suite passing in CI
+- 8-test smoke suite passing in CI
 - Artifact upload on failure for easy triage
 - Continuous block mining (1 block / 15s) during tests
 
-**M4 - Docs & Quickstarts (Next)**
+**M4 - Docs & Quickstarts**
 
 - "2-minute local start" guide
 - "5-line CI setup" snippet for other repos
 - Compatibility matrix (Zebra / Zaino versions)
 - Demo video
 
+**M5 - Multi-Wallet Testing Arrays** ✅
+
+- Refactored Faucet WalletManager to support spawning and managing multiple dynamic wallets
+- Deterministic seed derivation from wallet ID string using SHA256 and custom salt
+- Dynamic wallet endpoints under `/wallets` (create, list, address, stats, sync, shield, send)
+- Multi-wallet E2E testing array (Test 7: alice -> bob shielded send flow)
+- Background sync loop to iterate all dynamic wallets
+
+**M6 - 90-Day Maintenance** ⏳
+
+**User Stories:**
+- As an adopter, I want timely version bumps so my CI stays green as Zebra/backends update.
+- As a contributor, I want responsive triage so issues get unblocked.
+
+**Deliverables:**
+- 90-day maintenance: version pin updates (Zebra/backends), small fixes, monthly status notes.
+
+**Acceptance Criteria:**
+- Matrix CI remains green on current Zebra/backends; at least two monthly status notes posted; in-scope bugs are triaged with fixes or documented workarounds.
 ---
 
 ## Quick Start
@@ -216,16 +235,17 @@ Output:
   ZecKit - Running Smoke Tests
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  [0/7] Cluster synchronization... WARN (non-fatal) Sync node lagging: Miner=217 Sync=0
-  [1/7] Zebra RPC connectivity (Miner)... PASS
-  [2/7] Faucet health check... PASS
-  [3/7] Faucet address retrieval... PASS
-  [4/7] Wallet sync capability... PASS
-  [5/7] Wallet balance and shield... PASS
-  [6/7] Shielded send (E2E)... PASS
+  [0/8] Cluster synchronization... WARN (non-fatal) Sync node lagging: Miner=217 Sync=0
+  [1/8] Zebra RPC connectivity (Miner)... PASS
+  [2/8] Faucet health check... PASS
+  [3/8] Faucet address retrieval... PASS
+  [4/8] Wallet sync capability... PASS
+  [5/8] Wallet balance and shield... PASS
+  [6/8] Shielded send (E2E)... PASS
+  [7/8] Multi-wallet array (alice -> bob)... PASS
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Tests passed: 7
+  Tests passed: 8
   Tests failed: 0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -264,7 +284,7 @@ docker volume rm zeckit_zebra-data zeckit_zaino-data zeckit_faucet-data
 
 ### Automated Tests
 
-The `zeckit test` command runs 7 tests:
+The `zeckit test` command runs 8 tests:
 
 | Test | What It Validates |
 | ---- | ----------------- |
@@ -275,6 +295,7 @@ The `zeckit test` command runs 7 tests:
 | 4. Wallet Sync | Wallet can sync with blockchain |
 | 5. Shield Funds | Transparent → Orchard shielding works |
 | 6. Shielded Send | E2E golden flow: Orchard → Orchard |
+| 7. Multi-wallet Array | E2E flow between two dynamic wallets (alice → bob) |
 
 ### Manual Testing
 
@@ -439,6 +460,157 @@ Response:
   "orchard_balance": 543.74,
   "timestamp": "2026-02-05T05:41:22Z",
   "message": "Sent 0.05 ZEC from Orchard pool"
+}
+```
+
+#### POST /wallets
+
+Spawns a new dynamic wallet with `wallet_id`
+
+```bash
+curl -X POST http://localhost:8080/wallets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wallet_id": "alice"
+  }'
+```
+
+Response:
+
+```json
+{
+  "wallet_id": "alice",
+  "status": "created"
+}
+```
+
+#### GET /wallets
+
+Lists all currently loaded wallets
+
+```bash
+curl http://localhost:8080/wallets
+```
+
+Response:
+
+```json
+{
+  "wallets": [
+    "default",
+    "alice",
+    "bob"
+  ]
+}
+```
+
+#### GET /wallets/:id/address
+
+Get addresses for a specific dynamic wallet
+
+```bash
+curl http://localhost:8080/wallets/alice/address
+```
+
+Response:
+
+```json
+{
+  "wallet_id": "alice",
+  "unified_address": "uregtest1...",
+  "transparent_address": "tmBs..."
+}
+```
+
+#### GET /wallets/:id/stats
+
+Get balance and stats for a specific dynamic wallet
+
+```bash
+curl http://localhost:8080/wallets/alice/stats
+```
+
+Response:
+
+```json
+{
+  "wallet_id": "alice",
+  "current_balance": 0.1,
+  "orchard_balance": 0.0,
+  "transparent_balance": 0.1,
+  "total_requests": 0,
+  "total_sent": 0.0
+}
+```
+
+#### POST /wallets/:id/sync
+
+Sync a specific dynamic wallet with blockchain
+
+```bash
+curl -X POST http://localhost:8080/wallets/alice/sync
+```
+
+Response:
+
+```json
+{
+  "wallet_id": "alice",
+  "status": "synced",
+  "message": "Wallet alice synced with blockchain"
+}
+```
+
+#### POST /wallets/:id/shield
+
+Shield transparent funds to Orchard pool for a specific dynamic wallet
+
+```bash
+curl -X POST http://localhost:8080/wallets/alice/shield
+```
+
+Response:
+
+```json
+{
+  "wallet_id": "alice",
+  "status": "shielded",
+  "txid": "...",
+  "transparent_amount": 0.1,
+  "shielded_amount": 0.0999,
+  "fee": 0.0001,
+  "message": "Shielded 0.0999 ZEC from transparent to orchard (fee: 0.0001 ZEC)"
+}
+```
+
+#### POST /wallets/:id/send
+
+Send shielded transaction from a specific dynamic wallet
+
+```bash
+curl -X POST http://localhost:8080/wallets/alice/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "uregtest1...",
+    "amount": 0.04,
+    "memo": "from alice"
+  }'
+```
+
+Response:
+
+```json
+{
+  "wallet_id": "alice",
+  "status": "sent",
+  "txid": "...",
+  "to_address": "uregtest1...",
+  "amount": 0.04,
+  "memo": "from alice",
+  "new_balance": 0.0598,
+  "orchard_balance": 0.0598,
+  "timestamp": "2026-05-26T13:48:00Z",
+  "message": "Sent 0.04 ZEC from Orchard pool"
 }
 ```
 
@@ -628,7 +800,7 @@ Dual-licensed under MIT OR Apache-2.0
 
 ---
 
-**Last Updated:** April 2, 2026
-**Status:** **NU6/NU6.1 Upgrade Complete** — CI passing (7/7 tests) ✅
+**Last Updated:** May 26, 2026
+**Status:** **M5 Multi-Wallet Testing Arrays Complete** — CI passing (8/8 tests) ✅
 - **Protocol:** Upgraded to Zingolib v3.0.0 for official NU6 support.
 - **Performance:** Optimized image pulling (2-4 min CI setup).

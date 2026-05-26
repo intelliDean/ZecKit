@@ -27,7 +27,7 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, check_only: b
     let mut faucet_address = String::new();
 
     // Test 0: Cluster Synchronization (warn-only: Regtest P2P peering is best-effort)
-    print!("  [0/7] Cluster synchronization... ");
+    print!("  [0/8] Cluster synchronization... ");
     match test_cluster_sync(&client).await {
         Ok(_) => {
             println!("{}", "PASS".green());
@@ -42,7 +42,7 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, check_only: b
     }
 
     // Test 1: Zebra RPC
-    print!("  [1/7] Zebra RPC connectivity (Miner)... ");
+    print!("  [1/8] Zebra RPC connectivity (Miner)... ");
     match test_zebra_rpc(&client, 8232).await {
         Ok(_) => {
             println!("{}", "PASS".green());
@@ -55,7 +55,7 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, check_only: b
     }
 
     // Test 2: Faucet Health
-    print!("  [2/7] Faucet health check... ");
+    print!("  [2/8] Faucet health check... ");
     match test_faucet_health(&client).await {
         Ok(_) => {
             println!("{}", "PASS".green());
@@ -68,7 +68,7 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, check_only: b
     }
 
     // Test 3: Faucet Address
-    print!("  [3/7] Faucet address retrieval... ");
+    print!("  [3/8] Faucet address retrieval... ");
     match test_faucet_address(&client).await {
         Ok(addr) => {
             println!("{}", "PASS".green());
@@ -94,7 +94,7 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, check_only: b
     }
 
     // Test 4: Wallet Sync (with retries for backend indexing)
-    print!("  [4/7] Wallet sync capability... ");
+    print!("  [4/8] Wallet sync capability... ");
     let mut sync_success = false;
     let mut last_sync_error = String::new();
     
@@ -123,7 +123,7 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, check_only: b
     }
 
     // Test 5: Wallet balance and shield (using API endpoints)
-    print!("  [5/7] Wallet balance and shield... ");
+    print!("  [5/8] Wallet balance and shield... ");
     match test_wallet_shield(&client).await {
         Ok(txid) => {
             println!("{}", "PASS".green());
@@ -137,11 +137,24 @@ pub async fn execute(amount: f64, memo: String, action_mode: bool, check_only: b
     }
 
     // Test 6: Shielded send (E2E golden flow)
-    print!("  [6/7] Shielded send (E2E)... ");
+    print!("  [6/8] Shielded send (E2E)... ");
     match test_shielded_send(&client, amount, memo).await {
         Ok(txid) => {
             println!("{}", "PASS".green());
             send_txid = txid;
+            passed += 1;
+        }
+        Err(e) => {
+            println!("{} {}", "FAIL".red(), e);
+            failed += 1;
+        }
+    }
+
+    // Test 7: Multi-wallet array (alice -> bob E2E dynamic wallets)
+    print!("  [7/8] Multi-wallet array (alice -> bob)... ");
+    match test_multi_wallet(&client).await {
+        Ok(_) => {
+            println!("{}", "PASS".green());
             passed += 1;
         }
         Err(e) => {
@@ -698,5 +711,214 @@ async fn start_background_miner() -> Result<()> {
         }
     });
     
+    Ok(())
+}
+
+async fn test_multi_wallet(client: &Client) -> Result<()> {
+    println!();
+    
+    // 1. Create alice
+    println!("    Creating wallet 'alice'...");
+    let resp = client.post("http://127.0.0.1:8080/wallets")
+        .json(&json!({"wallet_id": "alice"}))
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Failed to create alice wallet: {}", resp.status())));
+    }
+    let res_json: Value = resp.json().await?;
+    let status = res_json.get("status").and_then(|v| v.as_str()).unwrap_or("");
+    if status != "created" && status != "exists" {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Unexpected status for alice: {}", status)));
+    }
+    
+    // 2. Create bob
+    println!("    Creating wallet 'bob'...");
+    let resp = client.post("http://127.0.0.1:8080/wallets")
+        .json(&json!({"wallet_id": "bob"}))
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Failed to create bob wallet: {}", resp.status())));
+    }
+    let res_json: Value = resp.json().await?;
+    let status = res_json.get("status").and_then(|v| v.as_str()).unwrap_or("");
+    if status != "created" && status != "exists" {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Unexpected status for bob: {}", status)));
+    }
+    
+    // 3. Verify alice stats is 0 (or at least get it)
+    println!("    Checking alice's balance...");
+    let resp = client.get("http://127.0.0.1:8080/wallets/alice/stats")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Failed to get alice stats: {}", resp.status())));
+    }
+    let alice_stats: Value = resp.json().await?;
+    let alice_bal = alice_stats.get("current_balance").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    println!("    Alice current balance: {} ZEC", alice_bal);
+    
+    // 4. Get alice's address
+    println!("    Retrieving alice's transparent address...");
+    let resp = client.get("http://127.0.0.1:8080/wallets/alice/address")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Failed to get alice address: {}", resp.status())));
+    }
+    let alice_addr_json: Value = resp.json().await?;
+    let alice_transparent = alice_addr_json.get("transparent_address")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| crate::error::ZecKitError::HealthCheck("Missing transparent address for alice".into()))?;
+    println!("    Alice transparent address: {}", alice_transparent);
+
+    // 5. Send from default faucet wallet to alice's transparent address
+    let send_amount = 0.1;
+    println!("    Sending {} ZEC from faucet default wallet to alice...", send_amount);
+    let resp = client.post("http://127.0.0.1:8080/send")
+        .json(&json!({
+            "address": alice_transparent,
+            "amount": send_amount,
+            "memo": "faucet to alice"
+        }))
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        let err_text = resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Send to alice failed: {}", err_text)));
+    }
+    let send_res: Value = resp.json().await?;
+    let txid = send_res.get("txid").and_then(|v| v.as_str()).unwrap_or("");
+    println!("    Transaction sent. TXID: {}", txid);
+
+    // Wait for mining
+    println!("    Waiting for block generation (45s)...");
+    sleep(Duration::from_secs(45)).await;
+
+    // 6. Sync alice wallet
+    println!("    Syncing alice wallet...");
+    let resp = client.post("http://127.0.0.1:8080/wallets/alice/sync")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Sync alice failed: {}", resp.status())));
+    }
+    
+    // 7. Verify alice stats (transparent_balance > 0)
+    println!("    Verifying alice balance...");
+    let resp = client.get("http://127.0.0.1:8080/wallets/alice/stats")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Failed to get alice stats: {}", resp.status())));
+    }
+    let alice_stats_after: Value = resp.json().await?;
+    let alice_transparent_bal = alice_stats_after.get("transparent_balance").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    println!("    Alice transparent balance: {} ZEC", alice_transparent_bal);
+    if alice_transparent_bal <= 0.0 {
+        return Err(crate::error::ZecKitError::HealthCheck("Alice did not receive funds (transparent balance is 0)".into()));
+    }
+
+    // 8. Shield alice's funds
+    println!("    Shielding alice's transparent funds to Orchard...");
+    let resp = client.post("http://127.0.0.1:8080/wallets/alice/shield")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        let err_text = resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Shielding alice failed: {}", err_text)));
+    }
+    let shield_res: Value = resp.json().await?;
+    let shield_txid = shield_res.get("txid").and_then(|v| v.as_str()).unwrap_or("");
+    println!("    Shield transaction sent. TXID: {}", shield_txid);
+
+    // Wait for mining
+    println!("    Waiting for block generation (45s)...");
+    sleep(Duration::from_secs(45)).await;
+
+    // 9. Sync alice wallet
+    println!("    Syncing alice wallet post-shield...");
+    let resp = client.post("http://127.0.0.1:8080/wallets/alice/sync")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Sync alice failed: {}", resp.status())));
+    }
+
+    // Verify alice Orchard balance
+    let resp = client.get("http://127.0.0.1:8080/wallets/alice/stats")
+        .send()
+        .await?;
+    let alice_stats_shielded: Value = resp.json().await?;
+    let alice_orchard_bal = alice_stats_shielded.get("orchard_balance").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    println!("    Alice Orchard balance: {} ZEC", alice_orchard_bal);
+    if alice_orchard_bal <= 0.0 {
+        return Err(crate::error::ZecKitError::HealthCheck("Alice Orchard balance is 0 after shield".into()));
+    }
+
+    // 10. Get bob's address (unified address)
+    println!("    Retrieving bob's unified address...");
+    let resp = client.get("http://127.0.0.1:8080/wallets/bob/address")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Failed to get bob address: {}", resp.status())));
+    }
+    let bob_addr_json: Value = resp.json().await?;
+    let bob_ua = bob_addr_json.get("unified_address")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| crate::error::ZecKitError::HealthCheck("Missing unified address for bob".into()))?;
+    println!("    Bob unified address: {}", bob_ua);
+
+    // 11. Send from alice to bob
+    let transfer_amount = 0.04;
+    println!("    Sending {} ZEC (shielded) from alice to bob...", transfer_amount);
+    let resp = client.post("http://127.0.0.1:8080/wallets/alice/send")
+        .json(&json!({
+            "address": bob_ua,
+            "amount": transfer_amount,
+            "memo": "from alice"
+        }))
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        let err_text = resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Alice to bob send failed: {}", err_text)));
+    }
+    let alice_send_res: Value = resp.json().await?;
+    let alice_send_txid = alice_send_res.get("txid").and_then(|v| v.as_str()).unwrap_or("");
+    println!("    Transfer transaction sent. TXID: {}", alice_send_txid);
+
+    // Wait for mining
+    println!("    Waiting for block generation (45s)...");
+    sleep(Duration::from_secs(45)).await;
+
+    // 12. Sync bob
+    println!("    Syncing bob wallet...");
+    let resp = client.post("http://127.0.0.1:8080/wallets/bob/sync")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Sync bob failed: {}", resp.status())));
+    }
+
+    // 13. Verify bob's stats
+    println!("    Checking bob's balance...");
+    let resp = client.get("http://127.0.0.1:8080/wallets/bob/stats")
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        return Err(crate::error::ZecKitError::HealthCheck(format!("Failed to get bob stats: {}", resp.status())));
+    }
+    let bob_stats: Value = resp.json().await?;
+    let bob_orchard_bal = bob_stats.get("orchard_balance").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    println!("    Bob Orchard balance: {} ZEC", bob_orchard_bal);
+    if bob_orchard_bal <= 0.0 {
+        return Err(crate::error::ZecKitError::HealthCheck("Bob did not receive funds (Orchard balance is 0)".into()));
+    }
+
+    println!("    {} Multi-wallet flow (alice -> bob) successful!", "PASS:".green());
+    println!();
     Ok(())
 }

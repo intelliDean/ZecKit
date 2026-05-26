@@ -60,10 +60,10 @@ pub(crate) async fn request_funds(
     
     // Send transaction
     let mut wallet = state.wallet.write().await;
-    let txid = wallet.send_transaction(&validated_address, amount, payload.memo).await?;
+    let txid = wallet.send_transaction(None, &validated_address, amount, payload.memo).await?;
     
     // Get new balance
-    let new_balance = wallet.get_balance().await?;
+    let new_balance = wallet.get_balance(None).await?;
     
     Ok(Json(FaucetResponse {
         success: true,
@@ -87,8 +87,8 @@ pub async fn get_faucet_address(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, FaucetError> {
     let wallet = state.wallet.read().await;
-    let address = wallet.get_unified_address().await?;
-    let balance = wallet.get_balance().await?;
+    let address = wallet.get_unified_address(None).await?;
+    let balance = wallet.get_balance(None).await?;
     
     Ok(Json(json!({
         "address": address,

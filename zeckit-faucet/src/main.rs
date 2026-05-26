@@ -125,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
     let wallet = Arc::new(RwLock::new(wallet));
 
     // Get wallet address
-    let address = wallet.read().await.get_unified_address().await?;
+    let address = wallet.read().await.get_unified_address(None).await?;
     info!(" Wallet initialized");
     info!("  Address: {}", address);
 
@@ -145,7 +145,7 @@ async fn main() -> anyhow::Result<()> {
             let mut wallet_guard = wallet.write().await;
             tokio::time::timeout(
                 Duration::from_secs(300),
-                wallet_guard.sync()
+                wallet_guard.sync(None)
             ).await
         };
         
@@ -206,7 +206,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Check balance after sync
-    match wallet.read().await.get_balance().await {
+    match wallet.read().await.get_balance(None).await {
         Ok(balance) => {
             info!("💰 Initial balance: {} ZEC", balance.total_zec());
             if balance.transparent > Zatoshis::ZERO {
@@ -262,34 +262,31 @@ async fn main() -> anyhow::Result<()> {
             
             match lock_result {
                 Ok(mut wallet_guard) => {
-                    // Perform sync_and_await with generous timeout
-                    let sync_result = tokio::time::timeout(
-                        Duration::from_secs(90), 
-                        wallet_guard.sync()
-                    ).await;
-                    
-                    match sync_result {
-                        Ok(Ok(result)) => {
-                            // Sync completed successfully
-                            tracing::debug!("Sync result: {:?}", result);
-                            
-                            // Release write lock before reading balance
-                            drop(wallet_guard);
-                            
-                            match sync_wallet.read().await.get_balance().await {
-                                Ok(balance) => {
-                                    info!("✓ Sync #{} complete - Balance: {} ZEC", sync_count, balance.total_zec());
-                                }
-                                Err(e) => {
-                                    tracing::warn!("✓ Sync #{} complete (balance check failed: {})", sync_count, e);
+                    let wallet_ids = wallet_guard.get_wallet_ids();
+                    for id in wallet_ids {
+                        tracing::debug!("🔄 Background sync for wallet '{}'", id);
+                        let sync_result = tokio::time::timeout(
+                            Duration::from_secs(90), 
+                            wallet_guard.sync(Some(&id))
+                        ).await;
+                        
+                        match sync_result {
+                            Ok(Ok(_)) => {
+                                match wallet_guard.get_balance(Some(&id)).await {
+                                    Ok(balance) => {
+                                        info!("✓ Sync #{} complete for wallet '{}' - Balance: {} ZEC", sync_count, id, balance.total_zec());
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("✓ Sync #{} complete for wallet '{}' (balance check failed: {})", sync_count, id, e);
+                                    }
                                 }
                             }
-                        }
-                        Ok(Err(e)) => {
-                            tracing::warn!("⚠ Sync #{} failed: {} (will retry in 60s)", sync_count, e);
-                        }
-                        Err(_) => {
-                            tracing::error!("⏱ Sync #{} timed out after 90s (will retry in 60s)", sync_count);
+                            Ok(Err(e)) => {
+                                tracing::warn!("⚠ Sync #{} failed for wallet '{}': {}", sync_count, id, e);
+                            }
+                            Err(_) => {
+                                tracing::error!("⏱ Sync #{} timed out for wallet '{}' after 90s", sync_count, id);
+                            }
                         }
                     }
                 }
@@ -313,6 +310,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/sync", post(api::wallet::sync_wallet))
         .route("/shield", post(api::wallet::shield_funds)) 
         .route("/send", post(api::wallet::send_shielded))
+        .route("/wallets", post(api::wallet::create_wallet).get(api::wallet::list_wallets))
+        .route("/wallets/:id/address", get(api::wallet::get_wallet_address))
+        .route("/wallets/:id/stats", get(api::wallet::get_wallet_stats))
+        .route("/wallets/:id/sync", post(api::wallet::sync_wallet_by_id))
+        .route("/wallets/:id/shield", post(api::wallet::shield_wallet_by_id))
+        .route("/wallets/:id/send", post(api::wallet::send_wallet_by_id))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
