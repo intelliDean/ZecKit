@@ -15,14 +15,14 @@ pub(crate) async fn get_stats(
 ) -> Result<Json<serde_json::Value>, FaucetError> {
     let wallet = state.wallet.read().await;
     
-    let address = wallet.get_unified_address().await?;
-    let balance = wallet.get_balance().await?;
-    let (tx_count, total_sent) = wallet.get_stats();
+    let address = wallet.get_unified_address(None).await?;
+    let balance = wallet.get_balance(None).await?;
+    let (tx_count, total_sent) = wallet.get_stats(None)?;
     
     let uptime = chrono::Utc::now() - state.start_time;
     let uptime_seconds = uptime.num_seconds();
 
-    let recent_txs = wallet.get_transaction_history(5);
+    let recent_txs = wallet.get_transaction_history(None, 5)?;
     let last_request = recent_txs.first().map(|tx| tx.timestamp.to_rfc3339());
 
     Ok(Json(json!({
@@ -47,7 +47,7 @@ pub(crate) async fn get_history(
     let wallet = state.wallet.read().await;
     
     let limit = params.limit.unwrap_or(100).min(1000).max(1);
-    let history = wallet.get_transaction_history(limit);
+    let history = wallet.get_transaction_history(None, limit)?;
 
     Ok(Json(json!({
         "count": history.len(),

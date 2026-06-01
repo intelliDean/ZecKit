@@ -9,8 +9,8 @@ pub(crate) async fn health_check(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, FaucetError> {
     let wallet_guard = state.wallet.read().await;
-    let synced_height = wallet_guard.get_height().await?;
-    let balance = wallet_guard.get_balance().await?;
+    let synced_height = wallet_guard.get_height(None).await?;
+    let balance = wallet_guard.get_balance(None).await?;
     let balance_zec = balance.total_zec();
 
     Ok(Json(json!({

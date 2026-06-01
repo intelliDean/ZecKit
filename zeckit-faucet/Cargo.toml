@@ -48,6 +48,8 @@ zip32 = "0.2.1"
 http = "1.0"
 rand_core = "0.6"
 subtle = "2.4"
+sha2 = "0.10"
+
 
 [dev-dependencies]
 tempfile = "3.0"

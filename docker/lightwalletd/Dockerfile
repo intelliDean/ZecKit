@@ -20,14 +20,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -o lightwalletd .
 
-# Build grpc-health-probe
-WORKDIR /build
-RUN git clone https://github.com/grpc-ecosystem/grpc-health-probe.git
-WORKDIR /build/grpc-health-probe
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -o grpc_health_probe
-
 # Runtime stage
 FROM debian:bookworm-slim
 
@@ -37,8 +29,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/lightwalletd/lightwalletd /usr/local/bin/lightwalletd
-COPY --from=builder /build/grpc-health-probe/grpc_health_probe /usr/local/bin/grpc_health_probe
-RUN chmod +x /usr/local/bin/lightwalletd /usr/local/bin/grpc_health_probe
+RUN chmod +x /usr/local/bin/lightwalletd
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

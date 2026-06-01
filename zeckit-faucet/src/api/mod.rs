@@ -23,7 +23,8 @@ pub(crate) async fn root(State(_state): State<AppState>) -> Json<serde_json::Val
             "sync": "/sync",
             "shield": "/shield",
             "send": "/send",
-            "history": "/history"
+            "history": "/history",
+            "wallets": "/wallets"
         }
     }))
 }
