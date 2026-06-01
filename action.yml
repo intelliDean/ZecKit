@@ -107,6 +107,14 @@ runs:
         VERSION="${{ github.action_ref }}"
         BINARY="${{ steps.platform.outputs.binary }}"
 
+        # If VERSION is empty, it means we are using the action locally (self-test)
+        # We should build from source to test the local CLI changes.
+        if [[ -z "$VERSION" ]]; then
+          echo "Local execution detected (action_ref is empty). Skipping download to build from source."
+          echo "downloaded=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
         # Robustly detect the repository hosting the action (fork-safe)
         # GitHub checkouts actions into _actions/<owner>/<repo>/ref
         OWNER_REPO=$(echo "${{ github.action_path }}" | awk -F'/_actions/' '{print $2}' | cut -d'/' -f1,2)
@@ -119,7 +127,7 @@ runs:
         mkdir -p "${{ github.action_path }}/bin"
         
         # Determine version for download
-        if [[ -z "$VERSION" ]] || [[ "$VERSION" == "main" ]] || [[ "$VERSION" == "m3-implementation" ]]; then
+        if [[ "$VERSION" == "main" ]] || [[ "$VERSION" == "m3-implementation" ]]; then
           DL_URL="$BASE/latest/download/$BINARY"
         else
           # Clean version tag (strip 'refs/tags/' if present)

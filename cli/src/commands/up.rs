@@ -299,13 +299,13 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     }
     
     // ========================================================================
-    // STEP 8: Wait for LWD to sync those blocks
+    // STEP 8: Wait for Backend to sync those blocks
     // ========================================================================
     println!();
-    println!("Waiting for Backend (LWD) to sync these blocks...");
+    println!("Waiting for Backend ({}) to sync these blocks...", backend);
     
     // We already have a checker instance from Step 3
-    if let Err(e) = checker.wait_for_backend("lwd", &pb).await {
+    if let Err(e) = checker.wait_for_backend(&backend, &pb).await {
         if std::time::Instant::now() >= deadline {
             let _ = save_faucet_stats_artifact(action_mode, project_dir.clone()).await;
             return Err(ZecKitError::ServiceNotReady(format!(

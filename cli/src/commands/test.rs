@@ -482,14 +482,14 @@ async fn test_wallet_shield(client: &Client) -> Result<String> {
                     println!("    TXID: {}...", &txid[..16.min(txid.len())]);
                 }
                 
-                // Wait for transaction to be mined (Zebra generates every 15s, so 45s is safer)
-                println!("    Waiting for transaction to confirm (45s)...");
-                sleep(Duration::from_secs(45)).await;
+                // Wait for transaction to be mined
+                println!("    Waiting for transaction to confirm (mining 5 blocks)...");
+                let _ = mine_blocks(client, 5).await;
+                sleep(Duration::from_secs(2)).await;
                 
                 // Sync wallet to see new balance
                 println!("    Syncing wallet to update balance...");
-                let _ = client.post("http://127.0.0.1:8080/sync").send().await;
-                sleep(Duration::from_secs(5)).await;
+                let _ = test_wallet_sync(client).await;
                 
                 // Check balance after shielding
                 let balance_after = get_wallet_balance_via_api(client).await?;
@@ -674,6 +674,12 @@ async fn test_shielded_send(client: &Client, amount: f64, memo: String) -> Resul
         println!("      - Sent {} ZEC to recipient UA", amount);
         println!("      - Transaction broadcast successfully");
         
+        println!("    Waiting for send transaction to confirm (mining 5 blocks)...");
+        let _ = mine_blocks(client, 5).await;
+        sleep(Duration::from_secs(2)).await;
+        println!("    Syncing wallet to confirm change...");
+        let _ = test_wallet_sync(client).await;
+
         println!();
         return Ok(txid);
     } else {
@@ -687,6 +693,20 @@ async fn test_shielded_send(client: &Client, amount: f64, memo: String) -> Resul
             "Shielded send did not complete as expected".into()
         ));
     }
+}
+
+async fn mine_blocks(client: &Client, count: u32) -> Result<()> {
+    let _ = client
+        .post("http://127.0.0.1:8232")
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": "test_miner",
+            "method": "generate",
+            "params": [count]
+        }))
+        .send()
+        .await?;
+    Ok(())
 }
 
 async fn start_background_miner() -> Result<()> {
@@ -797,8 +817,9 @@ async fn test_multi_wallet(client: &Client) -> Result<()> {
     println!("    Transaction sent. TXID: {}", txid);
 
     // Wait for mining
-    println!("    Waiting for block generation (45s)...");
-    sleep(Duration::from_secs(45)).await;
+    println!("    Mining 5 confirmation blocks...");
+    let _ = mine_blocks(client, 5).await;
+    sleep(Duration::from_secs(2)).await;
 
     // 6. Sync alice wallet
     println!("    Syncing alice wallet...");
@@ -838,8 +859,9 @@ async fn test_multi_wallet(client: &Client) -> Result<()> {
     println!("    Shield transaction sent. TXID: {}", shield_txid);
 
     // Wait for mining
-    println!("    Waiting for block generation (45s)...");
-    sleep(Duration::from_secs(45)).await;
+    println!("    Mining 5 confirmation blocks...");
+    let _ = mine_blocks(client, 5).await;
+    sleep(Duration::from_secs(2)).await;
 
     // 9. Sync alice wallet
     println!("    Syncing alice wallet post-shield...");
@@ -895,8 +917,9 @@ async fn test_multi_wallet(client: &Client) -> Result<()> {
     println!("    Transfer transaction sent. TXID: {}", alice_send_txid);
 
     // Wait for mining
-    println!("    Waiting for block generation (45s)...");
-    sleep(Duration::from_secs(45)).await;
+    println!("    Mining 5 confirmation blocks...");
+    let _ = mine_blocks(client, 5).await;
+    sleep(Duration::from_secs(2)).await;
 
     // 12. Sync bob
     println!("    Syncing bob wallet...");
