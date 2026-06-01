@@ -1,19 +1,167 @@
-name: E2E Tests
+name: CI Pipeline
 
 on:
   push:
     branches:
       - main
       - develop
+      - m3-implementation
+      - 'release/**'
   pull_request:
     branches:
       - main
       - develop
+      - m3-implementation
   workflow_dispatch:
+    inputs:
+      backend:
+        description: 'Backend to test (zaino | lwd | both)'
+        required: false
+        default: 'both'
+      upload_artifacts:
+        description: 'Artifact upload policy (always | on-failure | never)'
+        required: false
+        default: 'on-failure'
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
+  # ============================================================
+  # JOB 1: Build and Push Docker Images (matrix)
+  # ============================================================
+  build-and-push:
+    name: "Build Image – ${{ matrix.service }} (${{ matrix.platform }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [zebrad, zebra-sync, lightwalletd, zaino, zingo, zeckit-faucet]
+        platform: [amd64, arm64]
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+            os_arch: linux/amd64
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+            os_arch: linux/arm64
+          - service: zeckit-faucet
+            context: .
+            dockerfile: ./zeckit-faucet/Dockerfile
+          - service: zebrad
+            context: ./docker/zebra
+          - service: zebra-sync
+            context: ./docker/zebra
+          - service: lightwalletd
+            context: ./docker/lightwalletd
+          - service: zaino
+            context: ./docker/zaino
+          - service: zingo
+            context: ./docker/zingo
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase repo
+        id: repo
+        shell: bash
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile || format('{0}/Dockerfile', matrix.context) }}
+          platforms: ${{ matrix.os_arch }}
+          outputs: type=image,name=ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.platform }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.service }}-${{ matrix.platform }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ============================================================
+  # JOB 2: Merge Manifests and Tag as Latest
+  # ============================================================
+  merge:
+    name: "Merge Manifests – ${{ matrix.service }}"
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: always() && !cancelled()
+    strategy:
+      matrix:
+        service: [zebrad, zebra-sync, lightwalletd, zaino, zingo, zeckit-faucet]
+    steps:
+      - name: Download digests
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ matrix.service }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        if: steps.download.outcome == 'success'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: steps.download.outcome == 'success'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase repo
+        if: steps.download.outcome == 'success'
+        id: repo
+        shell: bash
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+      - name: Create manifest list and push
+        if: steps.download.outcome == 'success'
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< '{"tags":["ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:latest"]}') \
+            $(printf 'ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}@sha256:%s ' *)
+
+      - name: Inspect image
+        if: steps.download.outcome == 'success'
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:latest
+
+  # ============================================================
+  # JOB 3: E2E Test Suite (depends on merge)
+  # ============================================================
   e2e-tests:
-    name: ZecKit E2E Test Suite
+    name: "E2E Test Suite – ${{ matrix.os }}"
+    needs: merge
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -112,9 +260,6 @@ jobs:
           # Set IMAGE_PREFIX to pull pre-built images from GHCR
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           export IMAGE_PREFIX="ghcr.io/$REPO_LOWER"
-          
-          # The ZecKit CLI handle pulls and builds automatically.
-          # Manual 'docker compose pull' is redundant and can fail on older V2 plugins.
           
           # Force pre-built image pulls from GHCR (prevents slow CI builds)
           export ZECKIT_ALLOW_BUILD=false
@@ -275,3 +420,105 @@ jobs:
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
+
+  # ============================================================
+  # JOB 4: Build backend matrix for composite test
+  # ============================================================
+  set-matrix:
+    name: Set test matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Build backend matrix
+        id: matrix
+        shell: bash
+        run: |
+          requested="${{ github.event.inputs.backend }}"
+
+          if [[ "$requested" == "zaino" ]]; then
+            echo 'matrix={"backend":["zaino"]}' >> "$GITHUB_OUTPUT"
+          elif [[ "$requested" == "lwd" ]]; then
+            echo 'matrix={"backend":["lwd"]}' >> "$GITHUB_OUTPUT"
+          else
+            # Default: both backends
+            echo 'matrix={"backend":["zaino","lwd"]}' >> "$GITHUB_OUTPUT"
+          fi
+
+  # ============================================================
+  # JOB 5: Composite Action E2E Self-Test (depends on merge)
+  # ============================================================
+  composite-action-test:
+    name: "Composite Action – ${{ matrix.backend }}"
+    needs: [merge, set-matrix]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
+
+    steps:
+      - name: Checkout ZecKit
+        uses: actions/checkout@v4
+
+      - name: Run ZecKit E2E composite action (self-test)
+        id: e2e
+        uses: ./
+        with:
+          backend:                 ${{ matrix.backend }}
+          startup_timeout_minutes: '20'
+          block_wait_seconds:      '75'
+          allow_build:             'false'
+          send_amount:             '0.05'
+          send_memo:               'CI self-test – ${{ matrix.backend }}'
+          upload_artifacts:        ${{ github.event.inputs.upload_artifacts || 'on-failure' }}
+          ghcr_token:              ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Print action outputs
+        if: always()
+        shell: bash
+        run: |
+          echo "unified_address       : ${{ steps.e2e.outputs.unified_address }}"
+          echo "transparent_address   : ${{ steps.e2e.outputs.transparent_address }}"
+          echo "shield_txid           : ${{ steps.e2e.outputs.shield_txid }}"
+          echo "send_txid             : ${{ steps.e2e.outputs.send_txid }}"
+          echo "final_orchard_balance : ${{ steps.e2e.outputs.final_orchard_balance }} ZEC"
+          echo "block_height          : ${{ steps.e2e.outputs.block_height }}"
+          echo "test_result           : ${{ steps.e2e.outputs.test_result }}"
+
+      - name: Assert test_result is 'pass'
+        shell: bash
+        run: |
+          result="${{ steps.e2e.outputs.test_result }}"
+          if [[ "$result" != "pass" ]]; then
+            echo "::error::Golden E2E returned test_result='$result' (expected 'pass')."
+            exit 1
+          fi
+          echo "✓ test_result=pass"
+
+  # ============================================================
+  # JOB 6: CI Gate (aggregated status check)
+  # ============================================================
+  ci-gate:
+    name: CI Gate
+    needs:
+      - e2e-tests
+      - composite-action-test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all jobs
+        shell: bash
+        run: |
+          e2e="${{ needs.e2e-tests.result }}"
+          composite="${{ needs.composite-action-test.result }}"
+
+          echo "e2e-tests             : $e2e"
+          echo "composite-action-test : $composite"
+
+          if [[ "$e2e" != "success" ]] || [[ "$composite" != "success" ]]; then
+            echo "::error::One or more test jobs failed."
+            exit 1
+          fi
+          echo "✓ All CI jobs passed."
