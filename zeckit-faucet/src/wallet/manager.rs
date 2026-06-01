@@ -395,7 +395,9 @@ impl WalletManager {
         let amount = zcash_protocol::value::Zatoshis::from_u64(amount_zatoshis)
             .map_err(|_| FaucetError::Wallet("Invalid amount".to_string()))?;
 
-        let memo_bytes = if let Some(memo_text) = &memo {
+        let memo_bytes = if to_address.starts_with('t') {
+            None
+        } else if let Some(memo_text) = &memo {
             let bytes = memo_text.as_bytes();
             let mut padded = [0u8; 512];
             padded[..bytes.len().min(512)].copy_from_slice(&bytes[..bytes.len().min(512)]);
@@ -445,7 +447,9 @@ impl WalletManager {
         let amount = zcash_protocol::value::Zatoshis::from_u64(amount_zatoshis)
             .map_err(|_| FaucetError::Wallet("Invalid amount".to_string()))?;
 
-        let memo_bytes = if let Some(memo_text) = &memo {
+        let memo_bytes = if to_address.starts_with('t') {
+            None
+        } else if let Some(memo_text) = &memo {
             let bytes = memo_text.as_bytes();
             if bytes.len() > 512 {
                 return Err(FaucetError::Wallet("Memo too long (max 512 bytes)".to_string()));

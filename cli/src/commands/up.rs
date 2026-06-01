@@ -287,11 +287,14 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     // ========================================================================
     println!();
     let current_blocks = get_block_count(&Client::new()).await.unwrap_or(0);
-    let target_blocks = 101;
+    // Mine to 200 blocks: Zcash coinbase rewards need 100 confirmations to
+    // mature, so 200 blocks gives the faucet wallet a healthy buffer of matured
+    // rewards that are guaranteed to be spendable/shieldable.
+    let target_blocks = 200;
     
     if current_blocks < target_blocks {
         let needed = (target_blocks - current_blocks) as u32;
-        println!("Mining {} initial blocks for full maturity...", needed);
+        println!("Mining {} initial blocks for full coinbase maturity...", needed);
         mine_additional_blocks(needed).await?;
     }
     
@@ -341,76 +344,97 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     }
     
     // ========================================================================
-    // STEP 11: Sync wallet through faucet API
+    // STEP 11-13: Sync wallet, check balance, and shield — with retry loop
     // ========================================================================
+    // The faucet wallet needs to sync to see matured coinbase rewards, then
+    // shield them to Orchard. We retry up to 8 times (every 30s) to handle
+    // the case where the wallet is still catching up after initial mining.
+    // The devnet must NOT exit until the faucet has confirmed Orchard balance.
     println!();
-    println!("Syncing wallet with blockchain...");
-    
-    // Give wallet time to catch up with mined blocks
-    sleep(Duration::from_secs(5)).await;
-    
-    if let Err(e) = sync_wallet_via_faucet().await {
-        println!("{}", format!("Wallet sync warning: {}", e).yellow());
-        println!("  Will retry after waiting...");
+    println!("Funding faucet wallet (sync → shield → verify Orchard balance)...");
+
+    let max_fund_attempts = 8;
+    let mut orchard_balance_confirmed = false;
+
+    for attempt in 1..=max_fund_attempts {
+        println!();
+        println!("  [Attempt {}/{}] Syncing wallet...", attempt, max_fund_attempts);
+
+        // Give the wallet time to absorb newly mined blocks before syncing
         sleep(Duration::from_secs(10)).await;
-        
-        // Retry once
+
         if let Err(e) = sync_wallet_via_faucet().await {
-            println!("{}", format!("Wallet sync still failing: {}", e).yellow());
-        } else {
-            println!("✓ Wallet synced on retry");
+            println!("{}", format!("  Sync failed: {}. Retrying...", e).yellow());
+            sleep(Duration::from_secs(20)).await;
+            continue;
         }
-    } else {
-        println!("✓ Wallet synced with blockchain");
-    }
-    
-    // Wait for sync to complete
-    sleep(Duration::from_secs(5)).await;
-    
-    // ========================================================================
-    // STEP 12: Check balance BEFORE shielding
-    // ========================================================================
-    println!();
-    println!("Checking transparent balance...");
-    match check_wallet_balance().await {
-        Ok((transparent, orchard, total)) => {
-            println!("  Transparent: {} ZEC", transparent);
-            println!("  Orchard: {} ZEC", orchard);
-            println!("  Total: {} ZEC", total);
-            
-            if transparent == 0.0 && total == 0.0 {
-                println!();
-                println!("{}", "⚠ WARNING: Wallet has no funds!".yellow().bold());
-                println!("{}", "  This means Zebra did NOT mine to the faucet wallet address.".yellow());
-                println!("{}", "  Possible causes:".yellow());
-                println!("{}", "    1. Zebra config wasn't updated properly".yellow());
-                println!("{}", "    2. Wallet seed mismatch".yellow());
-                println!("{}", "  The devnet will still work, but the faucet won't have funds.".yellow());
+        println!("  ✓ Wallet synced");
+
+        // Check transparent balance
+        let (transparent, orchard, _total) = match check_wallet_balance().await {
+            Ok(b) => b,
+            Err(e) => {
+                println!("{}", format!("  Balance check failed: {}. Retrying...", e).yellow());
+                sleep(Duration::from_secs(20)).await;
+                continue;
+            }
+        };
+        println!("  Transparent: {} ZEC | Orchard: {} ZEC", transparent, orchard);
+
+        // If already shielded from a previous attempt, we are done
+        if orchard > 0.0 {
+            println!("{}", "  ✓ Faucet already has Orchard balance!".green());
+            orchard_balance_confirmed = true;
+            break;
+        }
+
+        // If no transparent funds yet, mine more blocks and retry
+        if transparent == 0.0 {
+            println!("{}", "  No transparent balance yet — mining 10 more blocks...".yellow());
+            let _ = mine_additional_blocks(10).await;
+            sleep(Duration::from_secs(20)).await;
+            continue;
+        }
+
+        // Shield transparent funds
+        println!("  Shielding {} ZEC transparent → Orchard...", transparent);
+        if let Err(e) = shield_transparent_funds().await {
+            println!("{}", format!("  Shield failed: {}. Retrying...", e).yellow());
+            sleep(Duration::from_secs(20)).await;
+            continue;
+        }
+        println!("  ✓ Shield tx submitted. Mining confirmation blocks...");
+
+        // Mine a confirmation block and wait for propagation
+        let _ = mine_additional_blocks(2).await;
+        sleep(Duration::from_secs(20)).await;
+
+        // Final sync to pick up the shielded balance
+        if let Err(e) = sync_wallet_via_faucet().await {
+            println!("{}", format!("  Post-shield sync failed: {}. Retrying...", e).yellow());
+            sleep(Duration::from_secs(10)).await;
+            continue;
+        }
+
+        // Verify Orchard balance
+        if let Ok((_, post_orchard, _)) = check_wallet_balance().await {
+            if post_orchard > 0.0 {
+                println!("{}", format!("  ✓ Orchard balance confirmed: {} ZEC", post_orchard).green());
+                orchard_balance_confirmed = true;
+                break;
             }
         }
-        Err(e) => {
-            println!("{}", format!("Could not check balance: {}", e).yellow());
-        }
+
+        println!("{}", "  Orchard balance still 0. Retrying...".yellow());
+        sleep(Duration::from_secs(10)).await;
     }
-    
-    // ========================================================================
-    // STEP 13: Shield transparent funds to orchard
-    // ========================================================================
-    println!();
-    if let Err(e) = shield_transparent_funds().await {
-        println!("{}", format!("Shield operation: {}", e).yellow());
+
+    if !orchard_balance_confirmed {
+        println!("{}", "⚠ WARNING: Faucet Orchard balance is 0 after all retries.".yellow().bold());
+        println!("{}", "  The smoke tests will fail. Check that Zebra is mining to the correct address.".yellow());
     } else {
-        // Sync again after shielding
-        println!("Re-syncing after shielding...");
-        sleep(Duration::from_secs(15)).await;
-        
-        if let Err(e) = sync_wallet_via_faucet().await {
-            println!("{}", format!("Warning: Post-shield sync failed: {}", e).yellow());
-        } else {
-            println!("✓ Post-shield sync complete");
-        }
-        
-        sleep(Duration::from_secs(5)).await;
+        println!();
+        println!("{}", "✓ Faucet wallet funded and ready!".green().bold());
     }
     
     // ========================================================================
