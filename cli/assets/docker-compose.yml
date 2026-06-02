@@ -59,6 +59,21 @@ services:
       start_period: 30s
 
   # ========================================
+  # BACKGROUND MINER LOOP (Mines blocks at BLOCK_INTERVAL)
+  # ========================================
+  zebra-miner-loop:
+    image: ${IMAGE_PREFIX:-zeckit}/zebrad:${TAG:-latest}
+    depends_on:
+      zebra-miner:
+        condition: service_started
+    environment:
+      - BLOCK_INTERVAL=${BLOCK_INTERVAL:-15}
+    entrypoint: [ "sh", "-c", "while true; do curl -s -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":\"bgminer\",\"method\":\"generate\",\"params\":[1]}' http://zebra-miner:8232; sleep $$BLOCK_INTERVAL; done" ]
+    networks:
+      - zeckit-network
+    restart: unless-stopped
+
+  # ========================================
   # LIGHTWALLETD (Profile: lwd)
   # ========================================
   lightwalletd:

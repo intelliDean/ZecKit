@@ -26,6 +26,9 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
         std::env::remove_var("ZECKIT_ACTIVATION_HEIGHTS");
     }
     
+    // Set block interval env var on host so it can be interpolated by docker-compose for the Miner Loop container
+    std::env::set_var("BLOCK_INTERVAL", block_interval.to_string());
+    
     let compose = DockerCompose::new(project_dir.clone(), image_prefix)?;
     
     if fresh {

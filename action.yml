@@ -53,6 +53,15 @@ inputs:
     description: 'If true, skip the ZecKit smoke tests and only start the devnet'
     required: false
     default: 'false'
+  block_interval:
+    description: 'Custom block mining interval in seconds'
+    required: false
+    default: '15'
+  activation_heights:
+    description: 'Custom activation heights in key=value format (e.g. nu5=1,nu6=10)'
+    required: false
+    default: ''
+
 
 outputs:
   unified_address:
@@ -184,6 +193,12 @@ runs:
         fi
         if [ -n "${{ inputs.fund_address }}" ]; then
           ZECKIT_UP_EXTRA_ARGS+=(--fund-address "${{ inputs.fund_address }}")
+        fi
+        if [ -n "${{ inputs.block_interval }}" ]; then
+          ZECKIT_UP_EXTRA_ARGS+=(--block-interval "${{ inputs.block_interval }}")
+        fi
+        if [ -n "${{ inputs.activation_heights }}" ]; then
+          ZECKIT_UP_EXTRA_ARGS+=(--activation-heights "${{ inputs.activation_heights }}")
         fi
 
         # Resolve image prefix
