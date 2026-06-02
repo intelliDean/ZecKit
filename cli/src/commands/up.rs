@@ -127,6 +127,12 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
         sleep(Duration::from_secs(2)).await;
     }
 
+    // Mine 10 blocks immediately to unblock Lightwalletd's block wait loop
+    println!("Mining 10 initial blocks to unblock backend indexers...");
+    if let Err(e) = mine_additional_blocks(10).await {
+        println!("  Warning: Could not mine 10 blocks immediately: {}", e);
+    }
+
     // Wait for Sync Node
     println!("Waiting for Zebra Sync node to initialize and peer...");
     let mut last_error_sync = String::new();
