@@ -69,6 +69,48 @@ fn derive_seed_for_id(id: &str) -> Result<String, FaucetError> {
     Ok(mnemonic.phrase().to_string())
 }
 
+fn get_configured_activation_heights() -> ConfiguredActivationHeights {
+    let mut heights = ConfiguredActivationHeights {
+        before_overwinter: Some(1),
+        overwinter: Some(1),
+        sapling: Some(1),
+        blossom: Some(1),
+        heartwood: Some(1),
+        canopy: Some(1),
+        nu5: Some(1),
+        nu6: Some(1),
+        nu6_1: Some(1),
+        nu7: None,
+    };
+
+    if let Ok(env_val) = std::env::var("ZECKIT_ACTIVATION_HEIGHTS") {
+        for part in env_val.split(',') {
+            let kv: Vec<&str> = part.split('=').collect();
+            if kv.len() == 2 {
+                let key = kv[0].trim().to_lowercase();
+                if let Ok(height) = kv[1].trim().parse::<u32>() {
+                    let block_height = Some(height);
+                    match key.as_str() {
+                        "before_overwinter" => heights.before_overwinter = block_height,
+                        "overwinter" => heights.overwinter = block_height,
+                        "sapling" => heights.sapling = block_height,
+                        "blossom" => heights.blossom = block_height,
+                        "heartwood" => heights.heartwood = block_height,
+                        "canopy" => heights.canopy = block_height,
+                        "nu5" => heights.nu5 = block_height,
+                        "nu6" => heights.nu6 = block_height,
+                        "nu6_1" | "nu6.1" => heights.nu6_1 = block_height,
+                        "nu7" => heights.nu7 = block_height,
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    heights
+}
+
 impl WalletManager {
     async fn load_or_create_wallet_client(
         wallet_dir: PathBuf,
@@ -83,18 +125,7 @@ impl WalletManager {
             FaucetError::Wallet(format!("Failed to create wallet directory: {}", e))
         })?;
 
-        let activation_heights = ConfiguredActivationHeights {
-            before_overwinter: Some(1),
-            overwinter: Some(1),
-            sapling: Some(1),
-            blossom: Some(1),
-            heartwood: Some(1),
-            canopy: Some(1),
-            nu5: Some(1),
-            nu6: Some(1),
-            nu6_1: Some(1),
-            nu7: None,
-        };
+        let activation_heights = get_configured_activation_heights();
         let chain_type = ChainType::Regtest(activation_heights);
         
         let config = ZingoConfig::build(chain_type)

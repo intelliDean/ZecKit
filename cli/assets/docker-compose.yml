@@ -171,6 +171,7 @@ services:
       - FAUCET_AMOUNT_MAX=100.0
       - FAUCET_AMOUNT_DEFAULT=10.0
       - RUST_LOG=info
+      - ZECKIT_ACTIVATION_HEIGHTS=${ZECKIT_ACTIVATION_HEIGHTS:-}
     depends_on:
       zebra-miner:
         condition: service_started
@@ -205,6 +206,7 @@ services:
       - FAUCET_AMOUNT_MAX=100.0
       - FAUCET_AMOUNT_DEFAULT=10.0
       - RUST_LOG=info
+      - ZECKIT_ACTIVATION_HEIGHTS=${ZECKIT_ACTIVATION_HEIGHTS:-}
     depends_on:
       zebra-miner:
         condition: service_started

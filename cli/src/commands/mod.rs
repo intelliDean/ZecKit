@@ -3,3 +3,4 @@ pub mod down;
 pub mod status;
 pub mod test;
 pub mod init;
+pub mod snapshot;

@@ -32,6 +32,8 @@ zeckit up --backend zaino
     *   `-b, --backend <zaino|lwd>`: Choose your light-client backend.
     *   `-f, --fresh`: Wipes previous blockchain data for a clean start.
     *   `--fund-address <ADDR>`: Automatically sends ZEC to an address once live.
+    *   `--block-interval <SECONDS>`: Set custom block mining interval in seconds (default: 15).
+    *   `--activation-heights <UPGRADES>`: Set custom activation heights in `key=value` format (e.g. `nu5=1,nu6=10`).
 
 #### Check Status (`status`)
 Verify if the nodes, backend, and faucet are healthy and synced:
@@ -44,6 +46,26 @@ Execute a standard end-to-end shielded transaction test to verify the network:
 ```bash
 zeckit test --amount 0.05
 ```
+
+#### Snapshot & Cloning (`snapshot`)
+Manage blockchain state snapshots to restore blockchain progress instantly or bypass long sync times:
+*   **Create a snapshot**:
+    ```bash
+    zeckit snapshot create <name>
+    ```
+    *(Note: This stops running containers automatically before backing up to prevent database corruption).*
+*   **Restore a snapshot**:
+    ```bash
+    zeckit snapshot restore <name>
+    ```
+*   **List snapshots**:
+    ```bash
+    zeckit snapshot list
+    ```
+*   **Delete a snapshot**:
+    ```bash
+    zeckit snapshot delete <name>
+    ```
 
 #### Stop the Devnet (`down`)
 Safely shut down all containers:

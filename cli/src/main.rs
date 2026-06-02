@@ -57,6 +57,14 @@ enum Commands {
         /// Custom Docker image prefix (e.g. ghcr.io/user/repo)
         #[arg(long, default_value = "ghcr.io/intellidean/zeckit")]
         image_prefix: Option<String>,
+
+        /// Custom block mining interval in seconds
+        #[arg(long, default_value = "15")]
+        block_interval: u64,
+
+        /// Custom activation heights in key=value format (e.g. nu5=1,nu6=10)
+        #[arg(long)]
+        activation_heights: Option<String>,
     },
     
     /// Stop the ZecKit devnet
@@ -103,6 +111,33 @@ enum Commands {
         #[arg(short, long)]
         output: Option<String>,
     },
+
+    /// Manage blockchain state snapshots
+    Snapshot {
+        #[command(subcommand)]
+        action: SnapshotAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SnapshotAction {
+    /// Create a new snapshot of the devnet state
+    Create {
+        /// Name of the snapshot
+        name: String,
+    },
+    /// Restore a snapshot of the devnet state
+    Restore {
+        /// Name of the snapshot to restore
+        name: String,
+    },
+    /// List available snapshots
+    List,
+    /// Delete a snapshot
+    Delete {
+        /// Name of the snapshot to delete
+        name: String,
+    },
 }
 
 #[tokio::main]
@@ -110,8 +145,8 @@ async fn main() {
     let cli = Cli::parse();
     
     let result = match cli.command {
-        Commands::Up { backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount, image_prefix } => {
-            commands::up::execute(backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount, cli.project_dir, image_prefix).await
+        Commands::Up { backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount, image_prefix, block_interval, activation_heights } => {
+            commands::up::execute(backend, fresh, timeout, action_mode, miner_address, fund_address, fund_amount, cli.project_dir, image_prefix, block_interval, activation_heights).await
         }
         Commands::Down { purge } => {
             commands::down::execute(purge, cli.project_dir).await
@@ -124,6 +159,9 @@ async fn main() {
         }
         Commands::Init { backend, force, output } => {
             commands::init::execute(backend, force, output, cli.project_dir).await
+        }
+        Commands::Snapshot { action } => {
+            commands::snapshot::execute(action, cli.project_dir).await
         }
     };
     

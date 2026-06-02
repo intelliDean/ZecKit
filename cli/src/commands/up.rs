@@ -13,11 +13,18 @@ use tokio::time::{sleep, Duration};
 // Known transparent address from default seed "abandon abandon abandon..."
 const DEFAULT_FAUCET_ADDRESS: &str = "tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd";
 
-pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bool, miner_address: Option<String>, fund_address: Option<String>, fund_amount: f64, project_dir: Option<String>, image_prefix: Option<String>) -> Result<()> {
+pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bool, miner_address: Option<String>, fund_address: Option<String>, fund_amount: f64, project_dir: Option<String>, image_prefix: Option<String>, block_interval: u64, activation_heights: Option<String>) -> Result<()> {
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!("{}", "  ZecKit - Starting Devnet".cyan().bold());
     println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".cyan());
     println!();
+    
+    // Set custom activation heights env var on host so it can be interpolated by docker-compose for the Faucet container
+    if let Some(ref heights) = activation_heights {
+        std::env::set_var("ZECKIT_ACTIVATION_HEIGHTS", heights);
+    } else {
+        std::env::remove_var("ZECKIT_ACTIVATION_HEIGHTS");
+    }
     
     let compose = DockerCompose::new(project_dir.clone(), image_prefix)?;
     
@@ -49,9 +56,12 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     // Resolve miner address: use provided override or fall back to default
     let resolved_miner_address = miner_address.as_deref().unwrap_or(DEFAULT_FAUCET_ADDRESS);
 
-    match update_zebra_config_file(resolved_miner_address, project_dir.clone()) {
+    match update_zebra_config_file(resolved_miner_address, project_dir.clone(), activation_heights.clone()) {
         Ok(_) => {
             println!("✓ Updated docker/configs/zebra.toml");
+            if activation_heights.is_some() {
+                println!("✓ Updated custom activation heights in zebra.toml and zebra-sync.toml");
+            }
             println!("  Mining to: {}", resolved_miner_address);
         }
         Err(e) => {
@@ -468,15 +478,15 @@ pub async fn execute(backend: String, fresh: bool, timeout: u64, action_mode: bo
     // STEP 15: Start background miner
     // ========================================================================
     println!();
-    println!("Starting continuous background miner (1 block every 15s)...");
-    start_background_miner().await?;
+    println!("Starting continuous background miner (1 block every {}s)...", block_interval);
+    start_background_miner(block_interval).await?;
     
     print_connection_info(&backend);
     print_mining_info().await?;
     
     println!();
     println!("{}", "✓ Devnet is running with continuous mining".green().bold());
-    println!("{}", "   New blocks will be mined every 15 seconds".green());
+    println!("{}", format!("   New blocks will be mined every {} seconds", block_interval).green());
     println!("{}", "   Press Ctrl+C to stop".green());
     
     // Save artifacts if in action mode
@@ -546,7 +556,7 @@ async fn save_faucet_stats_artifact(action_mode: bool, project_dir_override: Opt
 // ============================================================================
 // NEW FUNCTION: Update zebra.toml on host before starting containers
 // ============================================================================
-fn update_zebra_config_file(address: &str, project_dir_override: Option<String>) -> Result<()> {
+fn update_zebra_config_file(address: &str, project_dir_override: Option<String>, activation_heights: Option<String>) -> Result<()> {
     use regex::Regex;
     
     // Get project root
@@ -559,35 +569,114 @@ fn update_zebra_config_file(address: &str, project_dir_override: Option<String>)
     };
     
     let config_path = project_dir.join("docker/configs/zebra.toml");
+    let sync_config_path = project_dir.join("docker/configs/zebra-sync.toml");
     
-    // Read current config
-    let config = fs::read_to_string(&config_path)
-        .map_err(|e| ZecKitError::Config(format!("Could not read {:?}: {}", config_path, e)))?;
-    
-    // Update miner address using regex
-    let updated = if config.contains("miner_address") {
-        // Replace existing miner_address
-        let re = Regex::new(r#"miner_address\s*=\s*"[^"]*""#)
-            .map_err(|e| ZecKitError::Config(format!("Regex error: {}", e)))?;
-        re.replace(&config, format!("miner_address = \"{}\"", address)).to_string()
-    } else {
-        // Add miner_address to [mining] section
-        if config.contains("[mining]") {
-            config.replace(
-                "[mining]",
-                &format!("[mining]\nminer_address = \"{}\"", address)
-            )
+    let update_file = |path: &std::path::PathBuf| -> Result<()> {
+        let config = fs::read_to_string(path)
+            .map_err(|e| ZecKitError::Config(format!("Could not read {:?}: {}", path, e)))?;
+        
+        // Update miner address using regex
+        let mut updated = if config.contains("miner_address") {
+            // Replace existing miner_address
+            let re = Regex::new(r#"miner_address\s*=\s*"[^"]*""#)
+                .map_err(|e| ZecKitError::Config(format!("Regex error: {}", e)))?;
+            re.replace(&config, format!("miner_address = \"{}\"", address)).to_string()
         } else {
-            // Add entire [mining] section at the end
-            format!("{}\n\n[mining]\nminer_address = \"{}\"\n", config, address)
+            // Add miner_address to [mining] section
+            if config.contains("[mining]") {
+                config.replace(
+                    "[mining]",
+                    &format!("[mining]\nminer_address = \"{}\"", address)
+                )
+            } else {
+                // Add entire [mining] section at the end
+                format!("{}\n\n[mining]\nminer_address = \"{}\"\n", config, address)
+            }
+        };
+
+        if let Some(ref heights_str) = activation_heights {
+            updated = update_activation_heights_in_toml(&updated, heights_str)?;
         }
+        
+        // Write back to file
+        fs::write(path, updated)
+            .map_err(|e| ZecKitError::Config(format!("Could not write {:?}: {}", path, e)))?;
+        
+        Ok(())
     };
-    
-    // Write back to file
-    fs::write(&config_path, updated)
-        .map_err(|e| ZecKitError::Config(format!("Could not write {:?}: {}", config_path, e)))?;
+
+    update_file(&config_path)?;
+    if sync_config_path.exists() {
+        update_file(&sync_config_path).ok(); // Sync config update is best effort
+    }
     
     Ok(())
+}
+
+fn update_activation_heights_in_toml(content: &str, heights_str: &str) -> Result<String> {
+    let mut heights_map = std::collections::HashMap::new();
+    for part in heights_str.split(',') {
+        let kv: Vec<&str> = part.split('=').collect();
+        if kv.len() == 2 {
+            let key = kv[0].trim().to_uppercase();
+            let val = kv[1].trim().parse::<u64>().map_err(|e| ZecKitError::Config(format!("Invalid height value: {}", e)))?;
+            heights_map.insert(key, val);
+        }
+    }
+
+    if heights_map.is_empty() {
+        return Ok(content.to_string());
+    }
+
+    let section_header = "[network.testnet_parameters.activation_heights]";
+    if !content.contains(section_header) {
+        return Err(ZecKitError::Config("Could not find [network.testnet_parameters.activation_heights] section in zebra config".into()));
+    }
+
+    let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+    
+    let mut header_line_idx = 0;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim() == section_header {
+            header_line_idx = i;
+            break;
+        }
+    }
+
+    let mut new_lines = lines[0..=header_line_idx].to_vec();
+    let mut current_idx = header_line_idx + 1;
+    let mut skipped_keys = std::collections::HashSet::new();
+
+    for (key, val) in &heights_map {
+        let key_formatted = if key.contains('.') {
+            format!("\"{}\"", key)
+        } else {
+            key.clone()
+        };
+        new_lines.push(format!("{} = {}", key_formatted, val));
+        skipped_keys.insert(key.clone());
+    }
+
+    while current_idx < lines.len() {
+        let line = &lines[current_idx];
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            new_lines.extend_from_slice(&lines[current_idx..]);
+            break;
+        } else {
+            if let Some(eq_idx) = trimmed.find('=') {
+                let original_key = trimmed[..eq_idx].trim().trim_matches('"').to_uppercase();
+                if !skipped_keys.contains(&original_key) {
+                    new_lines.push(line.clone());
+                }
+            } else if trimmed.starts_with('#') || trimmed.is_empty() {
+                new_lines.push(line.clone());
+            }
+        }
+        current_idx += 1;
+    }
+
+    Ok(new_lines.join("\n"))
 }
 
 // ============================================================================
@@ -638,10 +727,10 @@ async fn mine_additional_blocks(count: u32) -> Result<()> {
     Ok(())
 }
 
-async fn start_background_miner() -> Result<()> {
-    tokio::spawn(async {
+async fn start_background_miner(interval_secs: u64) -> Result<()> {
+    tokio::spawn(async move {
         let client = Client::new();
-        let mut interval = tokio::time::interval(Duration::from_secs(15));
+        let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
         
         loop {
             interval.tick().await;
@@ -882,5 +971,34 @@ async fn fund_destination_address(addr: &str, amount: f64) -> Result<String> {
     } else {
         let err = json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown error");
         Err(ZecKitError::HealthCheck(err.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_update_activation_heights_in_toml() {
+        let original_toml = r#"[network]
+network = "Regtest"
+
+[network.testnet_parameters.activation_heights]
+NU5 = 1
+NU6 = 1
+"NU6.1" = 1
+
+[[network.testnet_parameters.lockbox_disbursements]]
+address = "t2RnBRiqrN1nW4ecZs1Fj3WWjNdnSs4kiX8"
+"#;
+
+        let heights_str = "nu5=10,nu6=20,nu6.1=30,nu7=40";
+        let updated = update_activation_heights_in_toml(original_toml, heights_str).unwrap();
+
+        assert!(updated.contains("NU5 = 10"));
+        assert!(updated.contains("NU6 = 20"));
+        assert!(updated.contains("\"NU6.1\" = 30"));
+        assert!(updated.contains("NU7 = 40"));
+        assert!(updated.contains("network = \"Regtest\""));
     }
 }

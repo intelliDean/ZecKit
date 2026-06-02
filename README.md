@@ -50,13 +50,15 @@
 - Compatibility matrix (Zebra / Zaino versions)
 - Demo video
 
-**M5 - Multi-Wallet Testing Arrays** ✅
+**M5 - Multi-Wallet Testing Arrays & Custom Chain Configuration** ✅
 
 - Refactored Faucet WalletManager to support spawning and managing multiple dynamic wallets
 - Deterministic seed derivation from wallet ID string using SHA256 and custom salt
 - Dynamic wallet endpoints under `/wallets` (create, list, address, stats, sync, shield, send)
 - Multi-wallet E2E testing array (Test 7: alice -> bob shielded send flow)
 - Background sync loop to iterate all dynamic wallets
+- Custom Chain Params Bootstrapping: Expose `--block-interval` and `--activation-heights` CLI arguments to customize Zebra mining speed and upgrade heights dynamically
+- Data Volume Snapshot & Cloning: Added `zeckit snapshot` commands to save, restore, list, and delete blockchain state database snapshots across portable Docker tarballs
 
 **M6 - 90-Day Maintenance** ⏳
 
