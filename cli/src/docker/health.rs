@@ -66,8 +66,8 @@ impl HealthChecker {
             
             // First check TCP connectivity
             if self.check_backend_port(9067).is_ok() {
-                // Then check sync parity via faucet (if lwd)
-                if backend == "lwd" {
+                // Then check sync parity via faucet (for both lwd and zaino)
+                if backend == "lwd" || backend == "zaino" {
                     match self.check_backend_sync_parity().await {
                         Ok(_) => return Ok(()),
                         Err(e) => {
@@ -91,12 +91,12 @@ impl HealthChecker {
         // 1. Get Zebra Miner height
         let zebra_height = self.get_zebra_height(8232).await?;
         
-        // 2. Get Faucet/LWD synced height
+        // 2. Get Faucet synced height
         let faucet_height = self.get_faucet_height().await?;
         
         if faucet_height < zebra_height.saturating_sub(1) {
             return Err(ZecKitError::HealthCheck(format!(
-                "Backend lagging: Miner={} LWD={}", 
+                "Backend lagging: Miner={} Backend={}", 
                 zebra_height, faucet_height
             )));
         }

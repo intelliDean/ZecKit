@@ -485,7 +485,7 @@ async fn test_wallet_shield(client: &Client) -> Result<String> {
                 // Wait for transaction to be mined
                 println!("    Waiting for transaction to confirm (mining 5 blocks)...");
                 let _ = mine_blocks(client, 5).await;
-                sleep(Duration::from_secs(2)).await;
+                let _ = wait_for_backend_sync(client).await;
                 
                 // Sync wallet to see new balance
                 println!("    Syncing wallet to update balance...");
@@ -609,7 +609,7 @@ async fn test_shielded_send(client: &Client, amount: f64, memo: String) -> Resul
     // ADD THIS: Extra sync to ensure wallet can spend the funds
     println!("    Syncing wallet to ensure spendable balance...");
     let _ = client.post("http://127.0.0.1:8080/sync").send().await;
-    sleep(Duration::from_secs(10)).await;
+    let _ = wait_for_backend_sync(client).await;
     
     // Step 2: Get a test recipient address (using faucet's own UA for simplicity)
     println!("    Getting recipient address...");
@@ -676,7 +676,7 @@ async fn test_shielded_send(client: &Client, amount: f64, memo: String) -> Resul
         
         println!("    Waiting for send transaction to confirm (mining 5 blocks)...");
         let _ = mine_blocks(client, 5).await;
-        sleep(Duration::from_secs(2)).await;
+        let _ = wait_for_backend_sync(client).await;
         println!("    Syncing wallet to confirm change...");
         let _ = test_wallet_sync(client).await;
 
@@ -696,17 +696,95 @@ async fn test_shielded_send(client: &Client, amount: f64, memo: String) -> Resul
 }
 
 async fn mine_blocks(client: &Client, count: u32) -> Result<()> {
-    let _ = client
+    let mut mined = 0;
+    while mined < count {
+        let res = client
+            .post("http://127.0.0.1:8232")
+            .json(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": "test_miner",
+                "method": "generate",
+                "params": [1]
+            }))
+            .timeout(tokio::time::Duration::from_secs(10))
+            .send()
+            .await;
+        match res {
+            Ok(resp) if resp.status().is_success() => {
+                mined += 1;
+                sleep(Duration::from_millis(200)).await;
+            }
+            _ => {
+                sleep(Duration::from_millis(500)).await;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn get_zebra_height(client: &Client) -> Result<u64> {
+    let resp = client
         .post("http://127.0.0.1:8232")
         .json(&serde_json::json!({
             "jsonrpc": "2.0",
-            "id": "test_miner",
-            "method": "generate",
-            "params": [count]
+            "id": "height",
+            "method": "getblockcount",
+            "params": []
         }))
         .send()
         .await?;
-    Ok(())
+
+    let json: Value = resp.json().await?;
+    let height = json.get("result")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| crate::error::ZecKitError::HealthCheck("Invalid Zebra height".into()))?;
+    Ok(height)
+}
+
+async fn get_faucet_height(client: &Client) -> Result<u64> {
+    let resp = client
+        .get("http://127.0.0.1:8080/health")
+        .send()
+        .await?;
+
+    let json: Value = resp.json().await?;
+    let height = json.get("synced_height")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| crate::error::ZecKitError::HealthCheck("Invalid Faucet height".into()))?;
+    Ok(height)
+}
+
+async fn wait_for_backend_sync(client: &Client) -> Result<()> {
+    let zebra_height = get_zebra_height(client).await?;
+    println!("    Waiting for backend to sync to height {}...", zebra_height);
+    
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_secs(60);
+    
+    while start.elapsed() < timeout {
+        match get_faucet_height(client).await {
+            Ok(faucet_height) => {
+                if faucet_height >= zebra_height {
+                    println!("    ✓ Backend synchronized at height {}", faucet_height);
+                    return Ok(());
+                }
+                print!("\r    Backend height: {} / {}", faucet_height, zebra_height);
+                use std::io::Write;
+                std::io::stdout().flush().ok();
+            }
+            Err(_) => {
+                print!("\r    Backend not responding yet...");
+                use std::io::Write;
+                std::io::stdout().flush().ok();
+            }
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
+    
+    println!();
+    Err(crate::error::ZecKitError::HealthCheck(
+        "Timed out waiting for backend to sync".into()
+    ))
 }
 
 async fn start_background_miner() -> Result<()> {
@@ -819,7 +897,7 @@ async fn test_multi_wallet(client: &Client) -> Result<()> {
     // Wait for mining
     println!("    Mining 5 confirmation blocks...");
     let _ = mine_blocks(client, 5).await;
-    sleep(Duration::from_secs(2)).await;
+    let _ = wait_for_backend_sync(client).await;
 
     // 6. Sync alice wallet
     println!("    Syncing alice wallet...");
@@ -861,7 +939,7 @@ async fn test_multi_wallet(client: &Client) -> Result<()> {
     // Wait for mining
     println!("    Mining 5 confirmation blocks...");
     let _ = mine_blocks(client, 5).await;
-    sleep(Duration::from_secs(2)).await;
+    let _ = wait_for_backend_sync(client).await;
 
     // 9. Sync alice wallet
     println!("    Syncing alice wallet post-shield...");
@@ -919,7 +997,7 @@ async fn test_multi_wallet(client: &Client) -> Result<()> {
     // Wait for mining
     println!("    Mining 5 confirmation blocks...");
     let _ = mine_blocks(client, 5).await;
-    sleep(Duration::from_secs(2)).await;
+    let _ = wait_for_backend_sync(client).await;
 
     // 12. Sync bob
     println!("    Syncing bob wallet...");

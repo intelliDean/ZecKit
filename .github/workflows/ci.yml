@@ -216,16 +216,18 @@ jobs:
           echo "Stopping containers..."
           docker compose down 2>/dev/null || true
           
-          # Remove volumes to clear stale data
+          # Remove volumes to clear stale data (names match docker-compose.yml volumes section)
           echo "Removing stale volumes..."
-          docker volume rm zeckit_zebra-data 2>/dev/null || true
+          docker volume rm zeckit_zebra-miner-data 2>/dev/null || true
           docker volume rm zeckit_zebra-sync-data 2>/dev/null || true
           docker volume rm zeckit_zaino-data 2>/dev/null || true
           docker volume rm zeckit_lightwalletd-data 2>/dev/null || true
           docker volume rm zeckit_faucet-data 2>/dev/null || true
+          docker volume rm zeckit_zingo-data 2>/dev/null || true
           
           # Remove orphaned containers
           docker compose down --remove-orphans 2>/dev/null || true
+
           
           echo "✓ Cleanup complete"
           echo ""
@@ -265,8 +267,8 @@ jobs:
           export ZECKIT_ALLOW_BUILD=false
           export ZECKIT_SRC_PATH=${{ github.workspace }}
 
-          # Use 15 minute timeout for image pulls + node initialization
-          ./target/release/zeckit up --backend zaino --timeout 15 &
+          # Use 20 minute timeout for image pulls + node initialization + 200-block mining
+          ./target/release/zeckit up --backend zaino --timeout 20 --image-prefix "ghcr.io/$REPO_LOWER" &
 
           PID=$!
           
@@ -462,6 +464,11 @@ jobs:
       - name: Checkout ZecKit
         uses: actions/checkout@v4
 
+      - name: Compute image prefix
+        id: image-prefix
+        shell: bash
+        run: echo "value=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
       - name: Run ZecKit E2E composite action (self-test)
         id: e2e
         uses: ./
@@ -474,6 +481,7 @@ jobs:
           send_memo:               'CI self-test – ${{ matrix.backend }}'
           upload_artifacts:        ${{ github.event.inputs.upload_artifacts || 'on-failure' }}
           ghcr_token:              ${{ secrets.GITHUB_TOKEN }}
+          image_prefix:            ${{ steps.image-prefix.outputs.value }}
 
       - name: Print action outputs
         if: always()

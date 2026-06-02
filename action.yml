@@ -32,7 +32,7 @@ inputs:
   image_prefix:
     description: 'Custom prefix for docker images (if using local fork)'
     required: false
-    default: 'ghcr.io/intellidean/zeckit'
+    default: ''
   allow_build:
     description: "Whether to allow building images from source if missing (default: true for stability)"
     required: false
@@ -186,13 +186,25 @@ runs:
           ZECKIT_UP_EXTRA_ARGS+=(--fund-address "${{ inputs.fund_address }}")
         fi
 
+        # Resolve image prefix
+        IMAGE_PREFIX="${{ inputs.image_prefix }}"
+        if [ -z "$IMAGE_PREFIX" ]; then
+           # Detect the repository hosting the action (fork-safe)
+           OWNER_REPO=$(echo "${{ github.action_path }}" | awk -F'/_actions/' '{print $2}' | cut -d'/' -f1,2)
+           if [ -z "$OWNER_REPO" ]; then
+              OWNER_REPO="intelliDean/ZecKit"
+           fi
+           IMAGE_PREFIX="ghcr.io/$(echo "$OWNER_REPO" | tr '[:upper:]' '[:lower:]')"
+        fi
+        echo "Resolved image prefix: $IMAGE_PREFIX"
+
         # Run the devnet
         "$CLI" up \
           --backend "${{ inputs.backend }}" \
           --timeout "${{ inputs.startup_timeout_minutes }}" \
           --action-mode \
           --fund-amount "${{ inputs.fund_amount }}" \
-          --image-prefix "${{ inputs.image_prefix }}" \
+          --image-prefix "$IMAGE_PREFIX" \
           "${ZECKIT_UP_EXTRA_ARGS[@]}"
         
         # Skip test phase if only_setup is true
